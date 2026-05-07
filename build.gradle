@@ -69,12 +69,21 @@ dependencies {
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
+    testImplementation 'org.wiremock:wiremock-standalone:3.6.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+    // Byte Buddy / Mockito do not officially support Java 25 yet; opt into experimental support.
+    systemProperty 'net.bytebuddy.experimental', 'true'
 }
+
+// JaCoCo coverage will be added once a release supports Java 25 class files
+// (current 0.8.13 stops at Java 24). Track on https://github.com/jacoco/jacoco/issues
 
 // Publication setup will be wired through JReleaser to Maven Central in Phase 7.
 // For now keep maven-publish configured locally so consumers can build against snapshots.
