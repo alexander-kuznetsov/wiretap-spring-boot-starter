@@ -14,11 +14,16 @@ import static io.wiretap.http.incoming.SleuthCorrelationId.SLEUTH_TRACE_ID;
  */
 public class TraceIdProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
-    private static final String TRACE_ID = "trace_id";
+    private static volatile String fieldName = "trace_id";
+
+    /** Called by {@link io.wiretap.configuration.WiretapFieldNamesProperties} on Spring startup. */
+    public static void configureFieldName(String name) {
+        fieldName = name;
+    }
 
     @Override
     public void writeTo(JsonGenerator generator, IAccessEvent iAccessEvent) throws IOException {
-        generator.writeFieldName(TRACE_ID);
+        generator.writeFieldName(fieldName);
         generator.writeString((String) iAccessEvent.getAttribute(SLEUTH_TRACE_ID.getAttributeName()));
     }
 }

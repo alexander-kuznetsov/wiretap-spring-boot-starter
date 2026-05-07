@@ -13,20 +13,28 @@ import java.io.IOException;
  */
 public class SessionKeyProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
-    private static final String SESSION_KEY = "session_key";
+    private static volatile String fieldName = "session_key";
+    private static volatile String sessionKeyHeader = "x-session-key";
 
-    /** Initialised by {@code WiretapHeadersProperties.apply()} from configuration. */
-    public static String sessionKeyHeader = "x-session-key";
+    /** Called by {@link io.wiretap.configuration.WiretapFieldNamesProperties} on Spring startup. */
+    public static void configureFieldName(String name) {
+        fieldName = name;
+    }
+
+    /** Called by {@link io.wiretap.configuration.WiretapHeadersProperties} on Spring startup. */
+    public static void setSessionKeyHeader(String header) {
+        sessionKeyHeader = header;
+    }
 
     @Override
     public void writeTo(JsonGenerator generator, IAccessEvent iAccessEvent) throws IOException {
         final String requestHeaderValue = iAccessEvent.getRequestHeaderMap().get(sessionKeyHeader);
         final String responseHeaderValue = iAccessEvent.getResponseHeaderMap().get(sessionKeyHeader);
         if (requestHeaderValue != null) {
-            generator.writeFieldName(SESSION_KEY);
+            generator.writeFieldName(fieldName);
             generator.writeString(requestHeaderValue);
         } else if (responseHeaderValue != null) {
-            generator.writeFieldName(SESSION_KEY);
+            generator.writeFieldName(fieldName);
             generator.writeString(responseHeaderValue);
         }
     }

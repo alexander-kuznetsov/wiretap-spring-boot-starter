@@ -17,6 +17,8 @@ import io.wiretap.http.message.HttpMessageInfo;
 import io.wiretap.http.message.HttpMessageInfo.RequestDirection;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
+import io.wiretap.configuration.WiretapFieldNamesProperties;
+import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
@@ -52,19 +54,22 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     private final RestControllerLogMessageSettings logSettings;
     private final ObjectMapper mapper;
     private final boolean isPrettyLog;
+    private final HttpAccessFieldNames httpFieldNames;
 
     @Autowired
     public HttpInfoMessageProvider(
             final BodyParser bodyParser,
             final RestControllerLogMessageSettings logSettings,
-            @Value("${wiretap.pretty-print:false}") boolean isPrettyLog
+            @Value("${wiretap.pretty-print:false}") boolean isPrettyLog,
+            final WiretapFieldNamesProperties fieldNames
     ) {
         super();
         this.bodyParser = bodyParser;
         this.mapper = new ObjectMapper();
-        setFieldName("http_info");
+        setFieldName(fieldNames.getHttpInfo());
         this.logSettings = logSettings;
         this.isPrettyLog = isPrettyLog;
+        this.httpFieldNames = fieldNames.getHttp();
     }
 
     @PostConstruct
@@ -123,8 +128,8 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
 
             generator.writeRawValue(
                     isPrettyLog ?
-                            mapper.writerWithDefaultPrettyPrinter().writeValueAsString(message) :
-                            mapper.writer().writeValueAsString(message)
+                            mapper.writerWithDefaultPrettyPrinter().writeValueAsString(message.toMap(httpFieldNames)) :
+                            mapper.writer().writeValueAsString(message.toMap(httpFieldNames))
             );
         } catch (Throwable e) {
             log.error("Error while providing to log http-info...", e);

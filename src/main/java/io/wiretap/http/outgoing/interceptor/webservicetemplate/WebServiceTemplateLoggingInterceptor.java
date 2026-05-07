@@ -21,6 +21,7 @@ import org.springframework.ws.transport.context.TransportContextHolder;
 import org.springframework.ws.transport.http.AbstractHttpSenderConnection;
 import org.springframework.ws.transport.http.ClientHttpRequestConnection;
 import io.wiretap.http.message.HttpMessageInfo;
+import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField;
 import io.wiretap.http.message.settings.WebServiceTemplateLogMessageSettings;
@@ -71,14 +72,17 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
     private final WebServiceTemplateLogMessageSettings soapLogSettings;
     private final BodyParser bodyParser;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HttpAccessFieldNames httpFieldNames;
 
     @Autowired
     public WebServiceTemplateLoggingInterceptor(
             WebServiceTemplateLogMessageSettings soapLogSettings,
-            BodyParser bodyParser
+            BodyParser bodyParser,
+            HttpAccessFieldNames httpFieldNames
     ) {
         this.soapLogSettings = soapLogSettings;
         this.bodyParser = bodyParser;
+        this.httpFieldNames = httpFieldNames;
     }
 
     @Override
@@ -257,7 +261,7 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
      * @param logMessage SOAP request/response info
      */
     private void logRequest(final HttpMessageInfo logMessage) throws IOException {
-        final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage);
+        final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
 
         try (final MDC.MDCCloseable ignored = MDC.putCloseable(CUSTOM_LOG_MESSAGE, stringLogMessage)) {
             log.info("Captured outgoing soap request {}", getMaskedRequestUrl(logMessage.getRequestUrl()));

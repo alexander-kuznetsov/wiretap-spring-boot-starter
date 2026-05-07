@@ -43,6 +43,6 @@ public class WiretapHeadersProperties {
 
     @PostConstruct
     public void apply() {
-        SessionKeyProvider.sessionKeyHeader = sessionKeyHeader;
+        SessionKeyProvider.setSessionKeyHeader(sessionKeyHeader);
     }
 }

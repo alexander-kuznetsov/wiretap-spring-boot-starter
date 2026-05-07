@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import jakarta.annotation.PostConstruct;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import org.springframework.stereotype.Component;
+import io.wiretap.configuration.WiretapFieldNamesProperties;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
 import io.wiretap.util.MaskUtil;
 
@@ -13,14 +14,14 @@ import java.io.IOException;
 @Component
 public class MessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
-    private static final String FIELD_NAME = "message";
     private static final String MESSAGE_PATTERN = "Captured incoming http request %s";
 
     private final boolean isUrlMaskingEnabled;
 
-    public MessageProvider(RestControllerLogMessageSettings restControllerLogMessageSettings) {
+    public MessageProvider(RestControllerLogMessageSettings settings, WiretapFieldNamesProperties fieldNames) {
         super();
-        this.isUrlMaskingEnabled = restControllerLogMessageSettings.isEnableUrlMasking();
+        setFieldName(fieldNames.getMessage());
+        this.isUrlMaskingEnabled = settings.isEnableUrlMasking();
     }
 
     @PostConstruct
@@ -34,7 +35,7 @@ public class MessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
                 MESSAGE_PATTERN,
                 isUrlMaskingEnabled ? getMasked(iAccessEvent.getRequestURI()) : iAccessEvent.getRequestURI()
         );
-        generator.writeFieldName(FIELD_NAME);
+        generator.writeFieldName(getFieldName());
         generator.writeString(message);
     }
 

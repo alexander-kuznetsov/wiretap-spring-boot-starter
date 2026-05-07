@@ -20,6 +20,7 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.util.StopWatch;
 import io.wiretap.http.message.HttpMessageInfo;
 import io.wiretap.http.message.settings.AdditionalRequestHeaders;
+import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField;
 import io.wiretap.http.message.settings.RestLogMessageSettings;
@@ -63,17 +64,19 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
     private final RestLogMessageSettings commonRestLogSettings;
     private final String clientName;
     private final BodyParser bodyParser;
+    private final HttpAccessFieldNames httpFieldNames;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /** Builds an interceptor with the given log settings, body parser and client name. */
     public RestLoggingInterceptor(
             final RestLogMessageSettings logMessageSettings,
             final BodyParser bodyParser,
-            String clientName
+            String clientName,
+            final HttpAccessFieldNames httpFieldNames
     ) {
         this.commonRestLogSettings = logMessageSettings;
         this.bodyParser = bodyParser;
         this.clientName = clientName;
+        this.httpFieldNames = httpFieldNames;
     }
 
 
@@ -211,7 +214,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
      */
     private void logRequest(final HttpMessageInfo logMessage) {
         try {
-            final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage);
+            final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
 
             try (final MDC.MDCCloseable ignored = MDC.putCloseable(HTTP_INFO_MDC_NAME, stringLogMessage)) {
                 log.info("Captured outgoing rest request {}", getMaskedRequestUrl(logMessage.getRequestUrl()));

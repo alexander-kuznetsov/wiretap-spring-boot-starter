@@ -24,6 +24,7 @@ import io.wiretap.http.incoming.provider.httpinfo.HttpInfoMessageProvider;
 import io.wiretap.http.incoming.provider.message.MessageProvider;
 import io.wiretap.http.incoming.provider.operationinfo.ExtraRequestInfoProvider;
 import io.wiretap.http.message.settings.*;
+import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.message.settings.body.BodyParserConfiguration;
 import io.wiretap.http.outgoing.interceptor.feignclient.FeignClientWrapper;
@@ -110,13 +111,20 @@ public class LoggerConfiguration implements WebMvcConfigurer {
         return restClient -> restClient.requestInterceptor(interceptor);
     }
 
+    @Bean
+    public HttpAccessFieldNames httpAccessFieldNames(WiretapFieldNamesProperties fieldNames) {
+        return fieldNames.getHttp();
+    }
+
     @ConditionalOnProperty(name = "wiretap.feign-interceptor.enabled", havingValue = "true", matchIfMissing = true)
     @Bean
-    public Client loggingFeignClient(BodyParser bodyParser, FeignClientMessageSettings feignClientMessageSettings) {
+    public Client loggingFeignClient(BodyParser bodyParser, FeignClientMessageSettings feignClientMessageSettings,
+                                     HttpAccessFieldNames httpFieldNames) {
         return new FeignClientWrapper(
                 new Client.Default(null, null),
                 bodyParser,
-                feignClientMessageSettings
+                feignClientMessageSettings,
+                httpFieldNames
         );
     }
 

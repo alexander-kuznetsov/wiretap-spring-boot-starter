@@ -15,11 +15,11 @@
                     <omitEmptyFields>true</omitEmptyFields>
                     <pattern>
                         {
-                        "@timestamp": "%t{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}",
-                        "env":"${ACTIVE_PROFILE}",
-                        "system":"${APP_NAME}",
-                        "inst":"${HOSTNAME}",
-                        "lb_trace_id": "#nullNA{%i{lb-trace-id}}"
+                        "${f_timestamp}": "%t{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}",
+                        "${f_env}":"${ACTIVE_PROFILE}",
+                        "${f_system}":"${APP_NAME}",
+                        "${f_inst}":"${HOSTNAME}",
+                        "${f_lb_trace_id}": "#nullNA{%i{lb-trace-id}}"
                         }
                     </pattern>
                 </pattern>
@@ -30,7 +30,7 @@
                     <omitEmptyFields>true</omitEmptyFields>
                     <pattern>
                         {
-                        "level": "INFO"
+                        "${f_level}": "INFO"
                         }
                     </pattern>
                 </pattern>

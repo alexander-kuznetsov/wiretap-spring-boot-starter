@@ -20,6 +20,7 @@ import org.springframework.util.StreamUtils;
 import io.wiretap.http.message.HttpMessageInfo;
 import io.wiretap.http.message.settings.AdditionalRequestHeaders;
 import io.wiretap.http.message.settings.FeignClientMessageSettings;
+import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
@@ -56,6 +57,7 @@ public class FeignClientWrapper implements Client {
     private final Client delegate;
     private final BodyParser bodyParser;
     private final FeignClientMessageSettings commonRestLogSettings;
+    private final HttpAccessFieldNames httpFieldNames;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String HTTP_INFO_MDC_NAME = "HTTP-REQUEST-LOG";
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
@@ -260,7 +262,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
      */
     private void logRequest(final HttpMessageInfo logMessage) {
         try {
-            final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage);
+            final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
 
             try (final MDC.MDCCloseable ignored = MDC.putCloseable(HTTP_INFO_MDC_NAME, stringLogMessage)) {
                 log.info("Captured outgoing feign-client request {}", getMaskedRequestUrl(logMessage.getRequestUrl()));

@@ -2,6 +2,7 @@ package io.wiretap.http.outgoing.interceptor.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.RestClientLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 
@@ -12,7 +13,8 @@ import io.wiretap.http.message.settings.body.BodyParser;
 public class RestClientLoggingInterceptor extends RestLoggingInterceptor {
 
     @Autowired
-    public RestClientLoggingInterceptor(RestClientLogMessageSettings logMessageSettings, BodyParser bodyParser) {
-        super(logMessageSettings, bodyParser, "RestClient");
+    public RestClientLoggingInterceptor(RestClientLogMessageSettings logMessageSettings, BodyParser bodyParser,
+                                        HttpAccessFieldNames httpFieldNames) {
+        super(logMessageSettings, bodyParser, "RestClient", httpFieldNames);
     }
 }

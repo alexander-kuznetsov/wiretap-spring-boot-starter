@@ -14,11 +14,16 @@ import static io.wiretap.http.incoming.SleuthCorrelationId.SLEUTH_SPAN_ID;
  */
 public class SpanIdProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
-    private static final String SPAN_ID = "span_id";
+    private static volatile String fieldName = "span_id";
+
+    /** Called by {@link io.wiretap.configuration.WiretapFieldNamesProperties} on Spring startup. */
+    public static void configureFieldName(String name) {
+        fieldName = name;
+    }
 
     @Override
     public void writeTo(JsonGenerator generator, IAccessEvent iAccessEvent) throws IOException {
-        generator.writeFieldName(SPAN_ID);
+        generator.writeFieldName(fieldName);
         generator.writeString((String) iAccessEvent.getAttribute(SLEUTH_SPAN_ID.getAttributeName()));
     }
 }
