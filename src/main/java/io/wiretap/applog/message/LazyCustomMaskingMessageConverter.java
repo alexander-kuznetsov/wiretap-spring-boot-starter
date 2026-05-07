@@ -11,7 +11,12 @@ import io.wiretap.applog.message.handler.MessageMaskingHandler;
  */
 public class LazyCustomMaskingMessageConverter extends MessageConverter {
 
-    public static MessageMaskingHandler handler;
+    private static volatile MessageMaskingHandler handler;
+
+    /** Called by {@link io.wiretap.configuration.MessageMaskingInit} on Spring startup. */
+    public static void setHandler(MessageMaskingHandler h) {
+        handler = h;
+    }
 
     private static final int MAX_LENGTH = 7000;
     private static final String INFO = "...truncated. Message size exceeds limit!";

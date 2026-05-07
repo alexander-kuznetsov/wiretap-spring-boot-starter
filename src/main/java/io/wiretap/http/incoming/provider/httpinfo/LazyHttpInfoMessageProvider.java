@@ -21,12 +21,18 @@ import java.io.IOException;
  */
 public class LazyHttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
-    protected static AbstractFieldJsonProvider<IAccessEvent> provider;
+    private static volatile AbstractFieldJsonProvider<IAccessEvent> provider;
+
+    /** Called once by {@link io.wiretap.http.incoming.provider.httpinfo.HttpInfoMessageProvider} on Spring startup. */
+    public static void setProvider(AbstractFieldJsonProvider<IAccessEvent> p) {
+        provider = p;
+    }
 
     @Override
     public void writeTo(final JsonGenerator generator, final IAccessEvent iAccessEvent) throws IOException {
-        if (provider != null) {
-            provider.writeTo(generator, iAccessEvent);
+        AbstractFieldJsonProvider<IAccessEvent> p = provider;
+        if (p != null) {
+            p.writeTo(generator, iAccessEvent);
         }
     }
 }

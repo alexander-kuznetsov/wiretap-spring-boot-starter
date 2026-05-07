@@ -25,7 +25,7 @@ public class MessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
     @PostConstruct
     public synchronized void init() {
-        LazyMessageProvider.provider = this;
+        LazyMessageProvider.setProvider(this);
     }
 
     @Override

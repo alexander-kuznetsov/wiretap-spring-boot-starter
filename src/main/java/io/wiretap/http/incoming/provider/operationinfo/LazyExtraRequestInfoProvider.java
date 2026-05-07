@@ -10,12 +10,19 @@ import java.io.IOException;
  * Custom logback-access provider that adds extra request info to the access log.
  */
 public class LazyExtraRequestInfoProvider extends AbstractFieldJsonProvider<IAccessEvent> {
-    protected static AbstractFieldJsonProvider<IAccessEvent> provider;
+
+    private static volatile AbstractFieldJsonProvider<IAccessEvent> provider;
+
+    /** Called once by {@link io.wiretap.http.incoming.provider.operationinfo.ExtraRequestInfoProvider} on Spring startup. */
+    public static void setProvider(AbstractFieldJsonProvider<IAccessEvent> p) {
+        provider = p;
+    }
 
     @Override
     public void writeTo(final JsonGenerator generator, final IAccessEvent iAccessEvent) throws IOException {
-        if (provider != null) {
-            provider.writeTo(generator, iAccessEvent);
+        AbstractFieldJsonProvider<IAccessEvent> p = provider;
+        if (p != null) {
+            p.writeTo(generator, iAccessEvent);
         }
     }
 }

@@ -11,28 +11,24 @@ import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
  */
 public class LazyIncomingRequestLogFilter extends Filter<IAccessEvent> {
 
-    /*
-     * Initialisation happens in two steps:
-     *   1. logback instantiates this filter while parsing its XML config (no Spring context yet),
-     *   2. once the Spring context is up, the active settings bean is plugged into this static
-     *      reference so the already-built filter can consult it at request time.
-     */
-    public static RestControllerLogMessageSettings httpInfoLogMessageSettings;
+    private static volatile RestControllerLogMessageSettings httpInfoLogMessageSettings;
+
+    /** Called by {@link io.wiretap.http.message.settings.RestControllerLogMessageSettings} on Spring startup. */
+    public static void setSettings(RestControllerLogMessageSettings settings) {
+        httpInfoLogMessageSettings = settings;
+    }
 
     @Override
     public FilterReply decide(IAccessEvent iAccessEvent) {
-        if (httpInfoLogMessageSettings == null) {
-            throw new RuntimeException("Missed RestControllerLogMessageSettings in request filter!");
+        RestControllerLogMessageSettings settings = httpInfoLogMessageSettings;
+        if (settings == null) {
+            return FilterReply.NEUTRAL;
         }
 
         final String requestURL = iAccessEvent.getRequestURL();
-        final boolean shouldSkip = httpInfoLogMessageSettings.getExcludeRequestPatterns().stream()
+        final boolean shouldSkip = settings.getExcludeRequestPatterns().stream()
                 .anyMatch(requestURL::matches);
 
-        if (shouldSkip) {
-            return FilterReply.DENY;
-        } else {
-            return FilterReply.ACCEPT;
-        }
+        return shouldSkip ? FilterReply.DENY : FilterReply.ACCEPT;
     }
 }

@@ -16,6 +16,6 @@ public class HttpAccessEventEncoderConfiguration {
 
     @PostConstruct
     public void initHttpAccessEventPostProcessor() {
-        LazyJsonAccessEncoder.httpAccessEventPostProcessHandler = httpAccessEventPostProcessHandler;
+        LazyJsonAccessEncoder.setPostProcessHandler(httpAccessEventPostProcessHandler);
     }
 }

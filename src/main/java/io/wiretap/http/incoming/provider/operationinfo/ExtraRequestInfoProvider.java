@@ -38,7 +38,7 @@ public class ExtraRequestInfoProvider extends AbstractFieldJsonProvider<IAccessE
 
     @PostConstruct
     public synchronized void init() {
-        LazyExtraRequestInfoProvider.provider = this;
+        LazyExtraRequestInfoProvider.setProvider(this);
     }
     @Override
     public void writeTo(JsonGenerator generator, IAccessEvent iAccessEvent) {

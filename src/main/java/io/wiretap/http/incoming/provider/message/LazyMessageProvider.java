@@ -7,12 +7,19 @@ import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import java.io.IOException;
 
 public class LazyMessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
-    protected static AbstractFieldJsonProvider<IAccessEvent> provider;
+
+    private static volatile AbstractFieldJsonProvider<IAccessEvent> provider;
+
+    /** Called once by {@link io.wiretap.http.incoming.provider.message.MessageProvider} on Spring startup. */
+    public static void setProvider(AbstractFieldJsonProvider<IAccessEvent> p) {
+        provider = p;
+    }
 
     @Override
     public void writeTo(JsonGenerator generator, IAccessEvent iAccessEvent) throws IOException {
-        if (provider != null) {
-            provider.writeTo(generator, iAccessEvent);
+        AbstractFieldJsonProvider<IAccessEvent> p = provider;
+        if (p != null) {
+            p.writeTo(generator, iAccessEvent);
         }
     }
 }

@@ -69,7 +69,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
 
     @PostConstruct
     public synchronized void init() {
-        LazyHttpInfoMessageProvider.provider = this;
+        LazyHttpInfoMessageProvider.setProvider(this);
     }
 
     @Override

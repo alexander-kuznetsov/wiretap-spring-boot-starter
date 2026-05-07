@@ -21,6 +21,6 @@ public class RestControllerLogMessageSettings extends HttpInfoLogMessageSettings
 
     @PostConstruct
     public void init() {
-        LazyIncomingRequestLogFilter.httpInfoLogMessageSettings = this;
+        LazyIncomingRequestLogFilter.setSettings(this);
     }
 }

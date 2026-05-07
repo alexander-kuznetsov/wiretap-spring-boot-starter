@@ -6,13 +6,19 @@ import io.wiretap.http.incoming.encoder.postprocessor.HttpAccessEventPostProcess
 
 public class LazyJsonAccessEncoder extends AccessEventCompositeJsonEncoder {
 
-    public static HttpAccessEventPostProcessHandler httpAccessEventPostProcessHandler;
+    private static volatile HttpAccessEventPostProcessHandler httpAccessEventPostProcessHandler;
+
+    /** Called by {@link io.wiretap.configuration.HttpAccessEventEncoderConfiguration} when the optional handler bean is present. */
+    public static void setPostProcessHandler(HttpAccessEventPostProcessHandler handler) {
+        httpAccessEventPostProcessHandler = handler;
+    }
 
     @Override
     public byte[] encode(IAccessEvent iAccessEvent) {
         byte[] encodedBytes = super.encode(iAccessEvent);
-        if (httpAccessEventPostProcessHandler != null) {
-            httpAccessEventPostProcessHandler.performPostProcess(encodedBytes);
+        HttpAccessEventPostProcessHandler h = httpAccessEventPostProcessHandler;
+        if (h != null) {
+            h.performPostProcess(encodedBytes);
         }
         return encodedBytes;
     }

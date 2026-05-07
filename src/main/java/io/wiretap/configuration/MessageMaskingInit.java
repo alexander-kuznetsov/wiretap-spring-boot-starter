@@ -11,6 +11,6 @@ import io.wiretap.applog.message.handler.MessageMaskingHandler;
 public class MessageMaskingInit {
 
     public MessageMaskingInit(MessageMaskingHandler messageMaskingHandler) {
-        LazyCustomMaskingMessageConverter.handler = messageMaskingHandler;
+        LazyCustomMaskingMessageConverter.setHandler(messageMaskingHandler);
     }
 }
