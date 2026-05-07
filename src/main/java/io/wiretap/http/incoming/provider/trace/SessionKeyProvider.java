@@ -6,22 +6,28 @@ import net.logstash.logback.composite.AbstractFieldJsonProvider;
 
 import java.io.IOException;
 
-import static io.wiretap.http.CorrelationHeaders.USER_SESSION_KEY;
-
+/**
+ * Logback-access provider that emits the {@code session_key} field, sourced from
+ * a configurable inbound or response header. The header name is supplied by
+ * {@link io.wiretap.configuration.WiretapHeadersProperties} at startup.
+ */
 public class SessionKeyProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
     private static final String SESSION_KEY = "session_key";
 
+    /** Initialised by {@code WiretapHeadersProperties.apply()} from configuration. */
+    public static String sessionKeyHeader = "x-session-key";
+
     @Override
     public void writeTo(JsonGenerator generator, IAccessEvent iAccessEvent) throws IOException {
-        final String requestHeaderSessionKey = iAccessEvent.getRequestHeaderMap().get(USER_SESSION_KEY.toString());
-        final String responseHeaderSessionKey = iAccessEvent.getResponseHeaderMap().get(USER_SESSION_KEY.toString());
-        if (requestHeaderSessionKey != null) {
+        final String requestHeaderValue = iAccessEvent.getRequestHeaderMap().get(sessionKeyHeader);
+        final String responseHeaderValue = iAccessEvent.getResponseHeaderMap().get(sessionKeyHeader);
+        if (requestHeaderValue != null) {
             generator.writeFieldName(SESSION_KEY);
-            generator.writeString(requestHeaderSessionKey);
-        } else if (responseHeaderSessionKey != null) {
+            generator.writeString(requestHeaderValue);
+        } else if (responseHeaderValue != null) {
             generator.writeFieldName(SESSION_KEY);
-            generator.writeString(responseHeaderSessionKey);
+            generator.writeString(responseHeaderValue);
         }
     }
 }

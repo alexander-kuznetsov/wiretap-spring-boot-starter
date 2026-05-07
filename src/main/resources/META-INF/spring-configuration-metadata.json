@@ -738,15 +738,16 @@
       "defaultValue": true
     },
     {
-      "name": "wiretap.finedog.enabled",
-      "type": "java.lang.Boolean",
-      "description": "Toggle processing of finedog-related annotations",
-      "defaultValue": true
+      "name": "wiretap.headers.forward-to-mdc",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Names of inbound headers that are forwarded into MDC under the same key. Override this list to recognise infrastructure-specific correlation headers (e.g. tcs-session-key, eKassir-PointID).",
+      "defaultValue": ["x-request-id", "x-session-key", "lb-trace-id"]
     },
     {
-      "name": "wiretap.finedog.mapping",
-      "type": "java.util.Map",
-      "description": "Mapping of aliases used in FinedogExternalDependency annotations to the real finedog unit ID"
+      "name": "wiretap.headers.session-key-header",
+      "type": "java.lang.String",
+      "description": "Name of the inbound header whose value is emitted as the session_key field in HTTP access logs.",
+      "defaultValue": "x-session-key"
     }
   ]
 }

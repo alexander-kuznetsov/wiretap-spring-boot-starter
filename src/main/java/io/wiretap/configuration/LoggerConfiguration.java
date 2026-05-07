@@ -48,14 +48,21 @@ import io.wiretap.http.outgoing.interceptor.webservicetemplate.WebServiceTemplat
         WebServiceTemplateLogMessageSettings.class,
         WebServiceTemplateLoggingInterceptor.class,
         MessageProvider.class,
-        ExtraRequestInfoProvider.class
+        ExtraRequestInfoProvider.class,
+        WiretapHeadersProperties.class
 })
-@Import(value = {BodyParserConfiguration.class, MessageMaskingConfiguration.class})
+@Import(value = {BodyParserConfiguration.class, MessageMaskingConfiguration.class, WiretapFieldProvidersInit.class})
 public class LoggerConfiguration implements WebMvcConfigurer {
+
+    private final WiretapHeadersProperties headersProperties;
+
+    public LoggerConfiguration(WiretapHeadersProperties headersProperties) {
+        this.headersProperties = headersProperties;
+    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new CorrelationHeadersMdcForwarder());
+        registry.addInterceptor(new CorrelationHeadersMdcForwarder(headersProperties));
     }
 
     @Bean
