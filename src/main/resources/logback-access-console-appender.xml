@@ -37,6 +37,8 @@
                 <provider class="io.wiretap.http.incoming.provider.message.LazyMessageProvider"/>
                 <provider class="io.wiretap.http.incoming.provider.httpinfo.LazyHttpInfoMessageProvider"/>
                 <provider class="io.wiretap.http.incoming.provider.operationinfo.LazyExtraRequestInfoProvider"/>
+                <!-- Fans out to user-defined WiretapAccessFieldProvider Spring beans -->
+                <provider class="io.wiretap.http.incoming.provider.WiretapDelegatingFieldProvider"/>
             </providers>
         </encoder>
     </appender>
