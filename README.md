@@ -136,10 +136,20 @@ For multi-field providers or raw JSON output, override `writeTo(...)` directly.
 
 ## Header forwarding
 
-By default the following inbound request headers are mirrored into MDC so any
-`log.info(...)` call inside the request thread is automatically tagged with them:
-`x-request-id`, `x-session-key`, `lb-trace-id`. The `session-key-header` property
-also drives the value of the `session_key` access-log field.
+Wiretap handles session/correlation headers in two independent places that cannot
+share state:
+
+- **`forward-to-mdc`** — copies header values into SLF4J MDC at the start of every
+  request, so any `log.info(...)` call in that thread is automatically tagged with them.
+- **`session-key-header`** — tells the Logback-access layer which header to read when
+  writing the `session_key` field in the structured HTTP access-log entry. Logback-access
+  runs in a separate context (`IAccessEvent`) with no access to the SLF4J MDC, so the
+  header must be re-read directly from the request. As a fallback, the response headers
+  are also checked — useful for protocols (e.g. SOAP) where a session key is established
+  in the response.
+
+Both properties default to `x-session-key`, but they are configured independently
+because they feed different logging subsystems.
 
 Override either set when your infrastructure uses different conventions:
 
