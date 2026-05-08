@@ -1,3 +1,5 @@
+[RU](README.ru.md) | EN
+
 # Wiretap
 
 > Structured JSON logging for Spring Boot applications, with HTTP request/response
