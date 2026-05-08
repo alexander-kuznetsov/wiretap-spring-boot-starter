@@ -91,7 +91,6 @@ wiretap:
 | `wiretap.fields.lb-trace-id` | `lb_trace_id` |
 | `wiretap.fields.trace-id` | `trace_id` |
 | `wiretap.fields.span-id` | `span_id` |
-| `wiretap.fields.session-key` | `session_key` |
 | `wiretap.fields.level` | `level` |
 | `wiretap.fields.message` | `message` |
 | `wiretap.fields.http-info` | `http_info` |
@@ -134,23 +133,11 @@ public class TenantIdFieldProvider implements WiretapAccessFieldProvider {
 
 ## Проброс заголовков
 
-Wiretap обрабатывает сессионные и корреляционные заголовки в двух независимых местах,
-которые не имеют общего контекста:
+По умолчанию следующие входящие заголовки запроса копируются в MDC, так что любой вызов
+`log.info(...)` внутри потока запроса автоматически получает их в качестве тегов:
+`x-request-id`, `x-session-key`, `lb-trace-id`.
 
-- **`forward-to-mdc`** — копирует значения заголовков в SLF4J MDC в начале каждого
-  запроса, так что любой вызов `log.info(...)` в этом потоке автоматически получает
-  их в качестве тегов.
-- **`session-key-header`** — указывает слою Logback-access, из какого заголовка читать
-  значение при записи поля `session_key` в структурированную запись HTTP access-лога.
-  Logback-access работает в отдельном контексте (`IAccessEvent`) без доступа к SLF4J MDC,
-  поэтому заголовок приходится читать напрямую из запроса. В качестве запасного варианта
-  проверяются также заголовки ответа — это полезно для протоколов (например, SOAP),
-  где сессионный ключ устанавливается в ответе.
-
-Оба свойства по умолчанию равны `x-session-key`, но настраиваются независимо,
-поскольку обслуживают разные подсистемы логирования.
-
-Переопределите любой из них, если ваша инфраструктура использует другие соглашения:
+Переопределите список, если ваша инфраструктура использует другие соглашения:
 
 ```yaml
 wiretap:
@@ -159,7 +146,24 @@ wiretap:
       - x-request-id
       - x-correlation-id
       - x-trace-id
-    session-key-header: x-session-key
+```
+
+Чтобы дополнительно вывести значение заголовка как поле в access-логе (например, `session_key`),
+используйте `WiretapAccessFieldProvider`. Logback-access работает в контексте, отдельном от
+SLF4J MDC, поэтому заголовок необходимо читать напрямую из события. Провайдер ниже также
+проверяет заголовки ответа в качестве запасного варианта — это удобно, когда сессионный ключ
+устанавливается в ответе (например, SOAP):
+
+```java
+@Component
+public class SessionKeyFieldProvider implements WiretapAccessFieldProvider {
+    @Override public String fieldName() { return "session_key"; }
+
+    @Override public Object value(IAccessEvent event) {
+        String v = event.getRequestHeaderMap().get("x-session-key");
+        return v != null ? v : event.getResponseHeaderMap().get("x-session-key");
+    }
+}
 ```
 
 ## Что логируется

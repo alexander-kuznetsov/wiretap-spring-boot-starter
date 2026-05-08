@@ -1,6 +1,5 @@
 package io.wiretap.configuration;
 
-import io.wiretap.http.incoming.provider.trace.SessionKeyProvider;
 import io.wiretap.http.incoming.provider.trace.SpanIdProvider;
 import io.wiretap.http.incoming.provider.trace.TraceIdProvider;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
@@ -35,7 +34,6 @@ public class WiretapFieldNamesProperties {
     private String lbTraceId = "lb_trace_id";
     private String traceId = "trace_id";
     private String spanId = "span_id";
-    private String sessionKey = "session_key";
     private String level = "level";
     private String message = "message";
     private String httpInfo = "http_info";
@@ -47,6 +45,5 @@ public class WiretapFieldNamesProperties {
     public void apply() {
         TraceIdProvider.configureFieldName(traceId);
         SpanIdProvider.configureFieldName(spanId);
-        SessionKeyProvider.configureFieldName(sessionKey);
     }
 }

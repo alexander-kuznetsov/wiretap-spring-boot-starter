@@ -17,6 +17,9 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 - Initial test suite (JUnit 5 + AssertJ + Mockito + WireMock).
 
 ### Changed
+- `wiretap.headers.session-key-header` and `wiretap.fields.session-key` removed.
+  The `session_key` access-log field (and any other header-sourced field) should be
+  added via `WiretapAccessFieldProvider` — see the README for an example.
 - All packages renamed to `io.wiretap.*` and translated to English.
 - All Tinkoff/ATM/Sage-specific defaults (`atm_id`, `eKassir-PointID`,
   `tcs-session-key`, `cluster_name`, `fd_external_id`) removed from the core.

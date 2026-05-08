@@ -24,7 +24,6 @@ class WiretapFieldNamesPropertiesTest {
             assertThat(props.getLbTraceId()).isEqualTo("lb_trace_id");
             assertThat(props.getTraceId()).isEqualTo("trace_id");
             assertThat(props.getSpanId()).isEqualTo("span_id");
-            assertThat(props.getSessionKey()).isEqualTo("session_key");
             assertThat(props.getLevel()).isEqualTo("level");
             assertThat(props.getMessage()).isEqualTo("message");
             assertThat(props.getHttpInfo()).isEqualTo("http_info");

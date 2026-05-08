@@ -92,7 +92,6 @@ log records share the same shape.
 | `wiretap.fields.lb-trace-id` | `lb_trace_id` |
 | `wiretap.fields.trace-id` | `trace_id` |
 | `wiretap.fields.span-id` | `span_id` |
-| `wiretap.fields.session-key` | `session_key` |
 | `wiretap.fields.level` | `level` |
 | `wiretap.fields.message` | `message` |
 | `wiretap.fields.http-info` | `http_info` |
@@ -136,22 +135,11 @@ For multi-field providers or raw JSON output, override `writeTo(...)` directly.
 
 ## Header forwarding
 
-Wiretap handles session/correlation headers in two independent places that cannot
-share state:
+By default the following inbound request headers are mirrored into MDC so any
+`log.info(...)` call inside the request thread is automatically tagged with them:
+`x-request-id`, `x-session-key`, `lb-trace-id`.
 
-- **`forward-to-mdc`** — copies header values into SLF4J MDC at the start of every
-  request, so any `log.info(...)` call in that thread is automatically tagged with them.
-- **`session-key-header`** — tells the Logback-access layer which header to read when
-  writing the `session_key` field in the structured HTTP access-log entry. Logback-access
-  runs in a separate context (`IAccessEvent`) with no access to the SLF4J MDC, so the
-  header must be re-read directly from the request. As a fallback, the response headers
-  are also checked — useful for protocols (e.g. SOAP) where a session key is established
-  in the response.
-
-Both properties default to `x-session-key`, but they are configured independently
-because they feed different logging subsystems.
-
-Override either set when your infrastructure uses different conventions:
+Override the list when your infrastructure uses different conventions:
 
 ```yaml
 wiretap:
@@ -160,7 +148,24 @@ wiretap:
       - x-request-id
       - x-correlation-id
       - x-trace-id
-    session-key-header: x-session-key
+```
+
+To also emit a header value as a field in the access log (e.g. `session_key`), use
+`WiretapAccessFieldProvider`. Logback-access runs in a separate context from SLF4J
+MDC, so the header must be read directly from the event — the provider below also
+checks response headers as a fallback, which is useful when a session key is
+established in the response (e.g. SOAP):
+
+```java
+@Component
+public class SessionKeyFieldProvider implements WiretapAccessFieldProvider {
+    @Override public String fieldName() { return "session_key"; }
+
+    @Override public Object value(IAccessEvent event) {
+        String v = event.getRequestHeaderMap().get("x-session-key");
+        return v != null ? v : event.getResponseHeaderMap().get("x-session-key");
+    }
+}
 ```
 
 ## What gets logged

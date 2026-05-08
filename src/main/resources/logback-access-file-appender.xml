@@ -34,7 +34,6 @@
                         </pattern>
                         <provider class="io.wiretap.http.incoming.provider.trace.TraceIdProvider"/>
                         <provider class="io.wiretap.http.incoming.provider.trace.SpanIdProvider"/>
-                        <provider class="io.wiretap.http.incoming.provider.trace.SessionKeyProvider"/>
                         <pattern>
                             <omitEmptyFields>true</omitEmptyFields>
                             <pattern>
