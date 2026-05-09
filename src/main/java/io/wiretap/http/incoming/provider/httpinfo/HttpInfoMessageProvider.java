@@ -17,7 +17,7 @@ import io.wiretap.http.message.HttpMessageInfo;
 import io.wiretap.http.message.HttpMessageInfo.RequestDirection;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
-import io.wiretap.configuration.WiretapFieldNamesProperties;
+import io.wiretap.configuration.WiretapAccessLogFieldsProperties;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
@@ -61,7 +61,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
             final BodyParser bodyParser,
             final RestControllerLogMessageSettings logSettings,
             @Value("${wiretap.pretty-print:false}") boolean isPrettyLog,
-            final WiretapFieldNamesProperties fieldNames
+            final WiretapAccessLogFieldsProperties fieldNames
     ) {
         super();
         this.bodyParser = bodyParser;

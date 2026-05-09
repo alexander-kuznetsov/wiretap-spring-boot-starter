@@ -7,7 +7,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class WiretapFieldNamesPropertiesTest {
+class WiretapAccessLogFieldsPropertiesTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(TestConfig.class);
@@ -15,7 +15,7 @@ class WiretapFieldNamesPropertiesTest {
     @Test
     void defaults_matchOriginalSchema() {
         runner.run(ctx -> {
-            WiretapFieldNamesProperties props = ctx.getBean(WiretapFieldNamesProperties.class);
+            WiretapAccessLogFieldsProperties props = ctx.getBean(WiretapAccessLogFieldsProperties.class);
 
             assertThat(props.getTimestamp()).isEqualTo("@timestamp");
             assertThat(props.getEnv()).isEqualTo("env");
@@ -43,14 +43,13 @@ class WiretapFieldNamesPropertiesTest {
     void topLevelOverrides_areBound() {
         runner
                 .withPropertyValues(
-                        "wiretap.fields.timestamp=ts",
-                        "wiretap.fields.http-info=http"
+                        "wiretap.access-log.fields.timestamp=ts",
+                        "wiretap.access-log.fields.http-info=http"
                 )
                 .run(ctx -> {
-                    WiretapFieldNamesProperties props = ctx.getBean(WiretapFieldNamesProperties.class);
+                    WiretapAccessLogFieldsProperties props = ctx.getBean(WiretapAccessLogFieldsProperties.class);
                     assertThat(props.getTimestamp()).isEqualTo("ts");
                     assertThat(props.getHttpInfo()).isEqualTo("http");
-                    // Untouched fields keep their default
                     assertThat(props.getMessage()).isEqualTo("message");
                 });
     }
@@ -59,21 +58,20 @@ class WiretapFieldNamesPropertiesTest {
     void nestedHttpOverrides_areBound() {
         runner
                 .withPropertyValues(
-                        "wiretap.fields.http.return-code=status",
-                        "wiretap.fields.http.duration=elapsed_ms",
-                        "wiretap.fields.http.url=path"
+                        "wiretap.access-log.fields.http.return-code=status",
+                        "wiretap.access-log.fields.http.duration=elapsed_ms",
+                        "wiretap.access-log.fields.http.url=path"
                 )
                 .run(ctx -> {
-                    HttpAccessFieldNames http = ctx.getBean(WiretapFieldNamesProperties.class).getHttp();
+                    HttpAccessFieldNames http = ctx.getBean(WiretapAccessLogFieldsProperties.class).getHttp();
                     assertThat(http.getReturnCode()).isEqualTo("status");
                     assertThat(http.getDuration()).isEqualTo("elapsed_ms");
                     assertThat(http.getUrl()).isEqualTo("path");
-                    // Untouched nested fields keep their default
                     assertThat(http.getMethod()).isEqualTo("http_method");
                 });
     }
 
-    @EnableConfigurationProperties(WiretapFieldNamesProperties.class)
+    @EnableConfigurationProperties(WiretapAccessLogFieldsProperties.class)
     static class TestConfig {
     }
 }

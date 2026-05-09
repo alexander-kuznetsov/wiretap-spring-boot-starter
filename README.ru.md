@@ -15,6 +15,25 @@ RU | [EN](README.md)
 как структурированная JSON-строка лога, с единообразными полями, автоматическим распространением
 correlation ID и встроенным маскированием чувствительных данных.
 
+**Лог приложения** (из `log.info(...)` или любого SLF4J-вызова):
+
+```json
+{
+  "@timestamp": "2026-05-07T10:14:32.918+00:00",
+  "env": "prod",
+  "system": "checkout-api",
+  "inst": "checkout-api-7d8c9f-xk2",
+  "trace_id": "0123456789abcdef",
+  "span_id": "fedcba9876543210",
+  "level": "INFO",
+  "thread_name": "http-nio-8080-exec-1",
+  "logger": "com.example.OrderService",
+  "message": "Order created"
+}
+```
+
+**HTTP access-лог** (каждый входящий и исходящий HTTP-вызов):
+
 ```json
 {
   "@timestamp": "2026-05-07T10:14:32.918+00:00",
@@ -61,22 +80,68 @@ wiretap:
     path: /var/log/myapp     # по умолчанию: /var/log/wiretap
 ```
 
-## Настройка имён полей
+## Поля лога приложения
+
+Стандартные поля, которые Wiretap добавляет к каждому `log.info(...)` / `log.error(...)`:
+
+| Поле | Значение по умолчанию | Источник |
+|---|---|---|
+| `wiretap.app-log.fields.timestamp` | `@timestamp` | Время события |
+| `wiretap.app-log.fields.env` | `env` | `spring.profiles.active` |
+| `wiretap.app-log.fields.system` | `system` | `spring.application.name` |
+| `wiretap.app-log.fields.instance` | `inst` | Переменная окружения `HOSTNAME` |
+| `wiretap.app-log.fields.trace-id` | `trace_id` | MDC `traceId` |
+| `wiretap.app-log.fields.span-id` | `span_id` | MDC `spanId` |
+| `wiretap.app-log.fields.level` | `level` | Уровень лога |
+| `wiretap.app-log.fields.thread-name` | `thread_name` | Имя потока |
+| `wiretap.app-log.fields.logger-name` | `logger` | Имя логгера (без stack trace) |
+| `wiretap.app-log.fields.message` | `message` | Отформатированное сообщение (маскированное) |
+| `wiretap.app-log.fields.http-info` | `http_info` | MDC `HTTP-REQUEST-LOG` как JSON |
+| `wiretap.app-log.fields.extra` | `extra` | MDC `LOG_EXTRA` как JSON |
+| `wiretap.app-log.fields.caller-class` | `caller_class` | Класс вызывающего (отключено по умолчанию) |
+| `wiretap.app-log.fields.caller-method` | `caller_method` | Метод вызывающего (отключено по умолчанию) |
+| `wiretap.app-log.fields.caller-line` | `caller_line` | Строка вызывающего (отключено по умолчанию) |
+| `wiretap.app-log.fields.caller-file` | `caller_file` | Файл вызывающего (отключено по умолчанию) |
+
+Поля caller-data требуют захвата стека вызовов и отключены по умолчанию.
+Включите их, если нужна точная информация об источнике лога (с накладными расходами на CPU):
+
+```yaml
+wiretap:
+  app-log:
+    visibility-settings:
+      CALLER_CLASS: true
+      CALLER_METHOD: true
+      CALLER_LINE: true
+```
+
+Переименование полей:
+
+```yaml
+wiretap:
+  app-log:
+    fields:
+      logger-name: class   # вернуть старое имя
+      thread-name: thread
+```
+
+## Настройка имён полей access-лога
 
 Имена полей по умолчанию соответствуют схеме Wiretap. Любое имя можно переопределить в `application.yml`:
 
 ```yaml
 wiretap:
-  fields:
-    timestamp: "@timestamp"
-    trace-id: trace_id
-    http-info: http
-    http:
-      return-code: status
-      duration: elapsed_ms
-      request-url: path
-      request-body: req
-      response-body: resp
+  access-log:
+    fields:
+      timestamp: "@timestamp"
+      trace-id: trace_id
+      http-info: http
+      http:
+        return-code: status
+        duration: elapsed_ms
+        request-url: path
+        request-body: req
+        response-body: resp
 ```
 
 Изменение применяется и к входящим access-логам, и к исходящим HTTP-логам, так что все записи
@@ -84,37 +149,42 @@ wiretap:
 
 | Свойство | Значение по умолчанию |
 |---|---|
-| `wiretap.fields.timestamp` | `@timestamp` |
-| `wiretap.fields.env` | `env` |
-| `wiretap.fields.system` | `system` |
-| `wiretap.fields.instance` | `inst` |
-| `wiretap.fields.lb-trace-id` | `lb_trace_id` |
-| `wiretap.fields.trace-id` | `trace_id` |
-| `wiretap.fields.span-id` | `span_id` |
-| `wiretap.fields.level` | `level` |
-| `wiretap.fields.message` | `message` |
-| `wiretap.fields.http-info` | `http_info` |
-| `wiretap.fields.http.return-code` | `return_code` |
-| `wiretap.fields.http.method` | `http_method` |
-| `wiretap.fields.http.direction` | `direction` |
-| `wiretap.fields.http.url` | `request_url` |
-| `wiretap.fields.http.protocol` | `protocol` |
-| `wiretap.fields.http.duration` | `duration` |
-| `wiretap.fields.http.source-port` | `source_port` |
-| `wiretap.fields.http.request-headers` | `request_headers` |
-| `wiretap.fields.http.response-headers` | `response_headers` |
-| `wiretap.fields.http.request-params` | `request_params` |
-| `wiretap.fields.http.request-body` | `request_body` |
-| `wiretap.fields.http.request-body-length` | `request_body_length` |
-| `wiretap.fields.http.response-body` | `response_body` |
-| `wiretap.fields.http.response-body-length` | `response_body_length` |
-| `wiretap.fields.http.xml-body-type` | `xml_body_type` |
+| `wiretap.access-log.fields.timestamp` | `@timestamp` |
+| `wiretap.access-log.fields.env` | `env` |
+| `wiretap.access-log.fields.system` | `system` |
+| `wiretap.access-log.fields.instance` | `inst` |
+| `wiretap.access-log.fields.lb-trace-id` | `lb_trace_id` |
+| `wiretap.access-log.fields.trace-id` | `trace_id` |
+| `wiretap.access-log.fields.span-id` | `span_id` |
+| `wiretap.access-log.fields.level` | `level` |
+| `wiretap.access-log.fields.message` | `message` |
+| `wiretap.access-log.fields.http-info` | `http_info` |
+| `wiretap.access-log.fields.http.return-code` | `return_code` |
+| `wiretap.access-log.fields.http.method` | `http_method` |
+| `wiretap.access-log.fields.http.direction` | `direction` |
+| `wiretap.access-log.fields.http.url` | `request_url` |
+| `wiretap.access-log.fields.http.protocol` | `protocol` |
+| `wiretap.access-log.fields.http.duration` | `duration` |
+| `wiretap.access-log.fields.http.source-port` | `source_port` |
+| `wiretap.access-log.fields.http.request-headers` | `request_headers` |
+| `wiretap.access-log.fields.http.response-headers` | `response_headers` |
+| `wiretap.access-log.fields.http.request-params` | `request_params` |
+| `wiretap.access-log.fields.http.request-body` | `request_body` |
+| `wiretap.access-log.fields.http.request-body-length` | `request_body_length` |
+| `wiretap.access-log.fields.http.response-body` | `response_body` |
+| `wiretap.access-log.fields.http.response-body-length` | `response_body_length` |
+| `wiretap.access-log.fields.http.xml-body-type` | `xml_body_type` |
 
 ## Добавление собственных полей (SPI)
 
-По умолчанию Wiretap выводит фиксированный набор полей. Чтобы дополнить каждую запись access-лога
-значениями из вашей доменной модели (ID тенанта, ID киоска, тип бизнес-операции и т. д.),
-реализуйте `WiretapAccessFieldProvider` как Spring-бин — Wiretap подхватит его автоматически:
+Wiretap предоставляет два SPI-интерфейса для добавления кастомных полей:
+
+- **`WiretapAccessFieldProvider`** — добавляет поля в HTTP access-логи (входящие и исходящие HTTP-вызовы).
+- **`WiretapLogFieldProvider`** — добавляет поля в логи приложения (`log.info(...)`, `log.error(...)` и т. д.).
+
+### Поля HTTP access-лога
+
+Реализуйте `WiretapAccessFieldProvider` как Spring-бин — Wiretap подхватит его автоматически:
 
 ```java
 @Component
@@ -130,6 +200,26 @@ public class TenantIdFieldProvider implements WiretapAccessFieldProvider {
 
 Возврат `null` из `value(...)` пропускает поле для данного события.
 Для провайдеров с несколькими полями или с «сырым» JSON-выводом переопределите `writeTo(...)` напрямую.
+
+### Поля лога приложения
+
+Реализуйте `WiretapLogFieldProvider` как Spring-бин, чтобы добавить поля к каждой строке `log.info(...)`:
+
+```java
+@Component
+public class TenantIdLogFieldProvider implements WiretapLogFieldProvider {
+    @Override public String fieldName() { return "tenant_id"; }
+
+    @Override public Object value(ILoggingEvent event) {
+        return event.getMDCPropertyMap().get("tenant-id");
+    }
+}
+```
+
+Обратите внимание: Logback-access и SLF4J MDC работают в раздельных контекстах. Поля, доступные
+через `IAccessEvent` (например, заголовки запроса), недоступны внутри `WiretapLogFieldProvider` —
+читайте их из MDC-ключей, установленных выше по стеку через `WiretapHeadersProperties` или
+servlet-фильтр.
 
 ## Проброс заголовков
 

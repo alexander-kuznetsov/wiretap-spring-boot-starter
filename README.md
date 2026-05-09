@@ -15,6 +15,25 @@ Add Wiretap to a Spring Boot application and every inbound and outbound HTTP cal
 captured as a structured JSON log line, with consistent fields, automatic correlation
 ID propagation, and built-in masking of sensitive data.
 
+**Access log** (from `log.info(...)` or any SLF4J call):
+
+```json
+{
+  "@timestamp": "2026-05-07T10:14:32.918+00:00",
+  "env": "prod",
+  "system": "checkout-api",
+  "inst": "checkout-api-7d8c9f-xk2",
+  "trace_id": "0123456789abcdef",
+  "span_id": "fedcba9876543210",
+  "level": "INFO",
+  "thread_name": "http-nio-8080-exec-1",
+  "logger": "com.example.OrderService",
+  "message": "Order created"
+}
+```
+
+**HTTP access log** (every inbound or outbound HTTP call):
+
 ```json
 {
   "@timestamp": "2026-05-07T10:14:32.918+00:00",
@@ -62,22 +81,68 @@ wiretap:
     path: /var/log/myapp     # default: /var/log/wiretap
 ```
 
-## Customising field names
+## Application log fields
+
+Standard fields emitted for every `log.info(...)` / `log.error(...)` call:
+
+| Field | Default name | Source |
+|---|---|---|
+| `wiretap.app-log.fields.timestamp` | `@timestamp` | Event timestamp |
+| `wiretap.app-log.fields.env` | `env` | `spring.profiles.active` |
+| `wiretap.app-log.fields.system` | `system` | `spring.application.name` |
+| `wiretap.app-log.fields.instance` | `inst` | `HOSTNAME` env var |
+| `wiretap.app-log.fields.trace-id` | `trace_id` | MDC `traceId` |
+| `wiretap.app-log.fields.span-id` | `span_id` | MDC `spanId` |
+| `wiretap.app-log.fields.level` | `level` | Log level |
+| `wiretap.app-log.fields.thread-name` | `thread_name` | Thread name |
+| `wiretap.app-log.fields.logger-name` | `logger` | Logger name (no stack trace) |
+| `wiretap.app-log.fields.message` | `message` | Formatted message (masked) |
+| `wiretap.app-log.fields.http-info` | `http_info` | MDC `HTTP-REQUEST-LOG` as JSON |
+| `wiretap.app-log.fields.extra` | `extra` | MDC `LOG_EXTRA` as JSON |
+| `wiretap.app-log.fields.caller-class` | `caller_class` | Caller class (off by default) |
+| `wiretap.app-log.fields.caller-method` | `caller_method` | Caller method (off by default) |
+| `wiretap.app-log.fields.caller-line` | `caller_line` | Caller line (off by default) |
+| `wiretap.app-log.fields.caller-file` | `caller_file` | Caller file (off by default) |
+
+Caller-data fields require a stack-trace capture and are disabled by default.
+Enable them when you need exact source location at the cost of extra CPU:
+
+```yaml
+wiretap:
+  app-log:
+    visibility-settings:
+      CALLER_CLASS: true
+      CALLER_METHOD: true
+      CALLER_LINE: true
+```
+
+Rename any field the same way:
+
+```yaml
+wiretap:
+  app-log:
+    fields:
+      logger-name: class   # revert to the old key name
+      thread-name: thread
+```
+
+## Customising access-log field names
 
 Default field names match the Wiretap schema. Override any name in `application.yml`:
 
 ```yaml
 wiretap:
-  fields:
-    timestamp: "@timestamp"
-    trace-id: trace_id
-    http-info: http
-    http:
-      return-code: status
-      duration: elapsed_ms
-      request-url: path
-      request-body: req
-      response-body: resp
+  access-log:
+    fields:
+      timestamp: "@timestamp"
+      trace-id: trace_id
+      http-info: http
+      http:
+        return-code: status
+        duration: elapsed_ms
+        request-url: path
+        request-body: req
+        response-body: resp
 ```
 
 The change applies to both incoming access logs and outgoing HTTP logs, so all
@@ -85,38 +150,42 @@ log records share the same shape.
 
 | Property | Default |
 |---|---|
-| `wiretap.fields.timestamp` | `@timestamp` |
-| `wiretap.fields.env` | `env` |
-| `wiretap.fields.system` | `system` |
-| `wiretap.fields.instance` | `inst` |
-| `wiretap.fields.lb-trace-id` | `lb_trace_id` |
-| `wiretap.fields.trace-id` | `trace_id` |
-| `wiretap.fields.span-id` | `span_id` |
-| `wiretap.fields.level` | `level` |
-| `wiretap.fields.message` | `message` |
-| `wiretap.fields.http-info` | `http_info` |
-| `wiretap.fields.http.return-code` | `return_code` |
-| `wiretap.fields.http.method` | `http_method` |
-| `wiretap.fields.http.direction` | `direction` |
-| `wiretap.fields.http.url` | `request_url` |
-| `wiretap.fields.http.protocol` | `protocol` |
-| `wiretap.fields.http.duration` | `duration` |
-| `wiretap.fields.http.source-port` | `source_port` |
-| `wiretap.fields.http.request-headers` | `request_headers` |
-| `wiretap.fields.http.response-headers` | `response_headers` |
-| `wiretap.fields.http.request-params` | `request_params` |
-| `wiretap.fields.http.request-body` | `request_body` |
-| `wiretap.fields.http.request-body-length` | `request_body_length` |
-| `wiretap.fields.http.response-body` | `response_body` |
-| `wiretap.fields.http.response-body-length` | `response_body_length` |
-| `wiretap.fields.http.xml-body-type` | `xml_body_type` |
+| `wiretap.access-log.fields.timestamp` | `@timestamp` |
+| `wiretap.access-log.fields.env` | `env` |
+| `wiretap.access-log.fields.system` | `system` |
+| `wiretap.access-log.fields.instance` | `inst` |
+| `wiretap.access-log.fields.lb-trace-id` | `lb_trace_id` |
+| `wiretap.access-log.fields.trace-id` | `trace_id` |
+| `wiretap.access-log.fields.span-id` | `span_id` |
+| `wiretap.access-log.fields.level` | `level` |
+| `wiretap.access-log.fields.message` | `message` |
+| `wiretap.access-log.fields.http-info` | `http_info` |
+| `wiretap.access-log.fields.http.return-code` | `return_code` |
+| `wiretap.access-log.fields.http.method` | `http_method` |
+| `wiretap.access-log.fields.http.direction` | `direction` |
+| `wiretap.access-log.fields.http.url` | `request_url` |
+| `wiretap.access-log.fields.http.protocol` | `protocol` |
+| `wiretap.access-log.fields.http.duration` | `duration` |
+| `wiretap.access-log.fields.http.source-port` | `source_port` |
+| `wiretap.access-log.fields.http.request-headers` | `request_headers` |
+| `wiretap.access-log.fields.http.response-headers` | `response_headers` |
+| `wiretap.access-log.fields.http.request-params` | `request_params` |
+| `wiretap.access-log.fields.http.request-body` | `request_body` |
+| `wiretap.access-log.fields.http.request-body-length` | `request_body_length` |
+| `wiretap.access-log.fields.http.response-body` | `response_body` |
+| `wiretap.access-log.fields.http.response-body-length` | `response_body_length` |
+| `wiretap.access-log.fields.http.xml-body-type` | `xml_body_type` |
 
 ## Adding custom fields (SPI)
 
-Out of the box Wiretap emits a fixed set of fields. To enrich every access log
-entry with values from your domain (per-tenant ID, kiosk ID, business operation
-type, …), implement `WiretapAccessFieldProvider` as a Spring bean — Wiretap picks
-it up automatically:
+Wiretap provides two SPI interfaces for adding custom fields:
+
+- **`WiretapAccessFieldProvider`** — adds fields to HTTP access logs (inbound and outbound HTTP calls).
+- **`WiretapLogFieldProvider`** — adds fields to application logs (`log.info(...)`, `log.error(...)`, etc.).
+
+### HTTP access log fields
+
+Implement `WiretapAccessFieldProvider` as a Spring bean — Wiretap picks it up automatically:
 
 ```java
 @Component
@@ -132,6 +201,26 @@ public class TenantIdFieldProvider implements WiretapAccessFieldProvider {
 
 Returning `null` from `value(...)` skips the field for that event.
 For multi-field providers or raw JSON output, override `writeTo(...)` directly.
+
+### Application log fields
+
+Implement `WiretapLogFieldProvider` as a Spring bean to add fields to every `log.info(...)` line:
+
+```java
+@Component
+public class TenantIdLogFieldProvider implements WiretapLogFieldProvider {
+    @Override public String fieldName() { return "tenant_id"; }
+
+    @Override public Object value(ILoggingEvent event) {
+        return event.getMDCPropertyMap().get("tenant-id");
+    }
+}
+```
+
+Note that Logback-access and SLF4J MDC run in separate contexts. Fields that are
+available via `IAccessEvent` (e.g. request headers) are not accessible inside
+`WiretapLogFieldProvider` — read them from MDC keys set upstream via
+`WiretapHeadersProperties` or a servlet filter.
 
 ## Header forwarding
 

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import jakarta.annotation.PostConstruct;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import org.springframework.stereotype.Component;
-import io.wiretap.configuration.WiretapFieldNamesProperties;
+import io.wiretap.configuration.WiretapAccessLogFieldsProperties;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
 import io.wiretap.util.MaskUtil;
 
@@ -18,7 +18,7 @@ public class MessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
     private final boolean isUrlMaskingEnabled;
 
-    public MessageProvider(RestControllerLogMessageSettings settings, WiretapFieldNamesProperties fieldNames) {
+    public MessageProvider(RestControllerLogMessageSettings settings, WiretapAccessLogFieldsProperties fieldNames) {
         super();
         setFieldName(fieldNames.getMessage());
         this.isUrlMaskingEnabled = settings.isEnableUrlMasking();

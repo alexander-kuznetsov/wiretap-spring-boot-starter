@@ -9,24 +9,24 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * Configurable JSON field names for all Wiretap-emitted log events.
+ * Configurable JSON field names for Wiretap HTTP access logs.
  * All names default to the original Wiretap schema.
  *
  * <pre>
  * wiretap:
- *   fields:
- *     http-info: http_info       # rename the outer wrapper field
- *     http:
- *       duration: elapsed_ms     # rename a field inside http_info
- *       return-code: status
+ *   access-log:
+ *     fields:
+ *       http-info: http_info       # rename the outer wrapper field
+ *       http:
+ *         duration: elapsed_ms     # rename a field inside http_info
+ *         return-code: status
  * </pre>
  */
 @Component
-@ConfigurationProperties(prefix = "wiretap.fields")
+@ConfigurationProperties(prefix = "wiretap.access-log.fields")
 @Data
-public class WiretapFieldNamesProperties {
+public class WiretapAccessLogFieldsProperties {
 
-    /** Top-level timestamp field (default: {@code @timestamp}). */
     private String timestamp = "@timestamp";
     private String env = "env";
     private String system = "system";

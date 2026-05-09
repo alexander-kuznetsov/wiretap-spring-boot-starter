@@ -52,7 +52,7 @@ import io.wiretap.http.outgoing.interceptor.webservicetemplate.WebServiceTemplat
         ExtraRequestInfoProvider.class,
         WiretapHeadersProperties.class
 })
-@Import(value = {BodyParserConfiguration.class, MessageMaskingConfiguration.class, WiretapFieldProvidersInit.class})
+@Import(value = {BodyParserConfiguration.class, MessageMaskingConfiguration.class, WiretapFieldProvidersInit.class, WiretapLogFieldProvidersInit.class})
 public class LoggerConfiguration implements WebMvcConfigurer {
 
     private final WiretapHeadersProperties headersProperties;
@@ -112,7 +112,7 @@ public class LoggerConfiguration implements WebMvcConfigurer {
     }
 
     @Bean
-    public HttpAccessFieldNames httpAccessFieldNames(WiretapFieldNamesProperties fieldNames) {
+    public HttpAccessFieldNames httpAccessFieldNames(WiretapAccessLogFieldsProperties fieldNames) {
         return fieldNames.getHttp();
     }
 

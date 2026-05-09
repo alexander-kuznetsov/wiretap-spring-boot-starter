@@ -32,7 +32,7 @@ class AutoConfigurationSmokeTest {
         runner.run(ctx -> {
             assertThat(ctx).hasNotFailed();
             assertThat(ctx).hasSingleBean(WiretapHeadersProperties.class);
-            assertThat(ctx).hasSingleBean(WiretapFieldNamesProperties.class);
+            assertThat(ctx).hasSingleBean(WiretapAccessLogFieldsProperties.class);
             assertThat(ctx).hasSingleBean(HttpAccessFieldNames.class);
             assertThat(ctx).hasSingleBean(HttpInfoMessageProvider.class);
             assertThat(ctx).hasSingleBean(MessageProvider.class);
@@ -47,8 +47,8 @@ class AutoConfigurationSmokeTest {
     void httpAccessFieldNamesBeanReflectsConfiguredOverrides() {
         runner
                 .withPropertyValues(
-                        "wiretap.fields.http.return-code=status",
-                        "wiretap.fields.http.duration=elapsed_ms"
+                        "wiretap.access-log.fields.http.return-code=status",
+                        "wiretap.access-log.fields.http.duration=elapsed_ms"
                 )
                 .run(ctx -> {
                     HttpAccessFieldNames names = ctx.getBean(HttpAccessFieldNames.class);

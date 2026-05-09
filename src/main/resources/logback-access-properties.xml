@@ -11,11 +11,11 @@
     <springProperty scope="context" name="isLoggingFile" source="wiretap.file-logging-enabled" defaultValue="false"/>
     <springProperty scope="context" name="loggingPath" source="wiretap.file-logging-path" defaultValue="/var/log/wiretap"/>
 
-    <!-- Access log top-level field names (override via wiretap.fields.*) -->
-    <springProperty scope="context" name="f_timestamp"   source="wiretap.fields.timestamp"    defaultValue="@timestamp"/>
-    <springProperty scope="context" name="f_env"         source="wiretap.fields.env"           defaultValue="env"/>
-    <springProperty scope="context" name="f_system"      source="wiretap.fields.system"        defaultValue="system"/>
-    <springProperty scope="context" name="f_inst"        source="wiretap.fields.instance"      defaultValue="inst"/>
-    <springProperty scope="context" name="f_lb_trace_id" source="wiretap.fields.lb-trace-id"   defaultValue="lb_trace_id"/>
-    <springProperty scope="context" name="f_level"       source="wiretap.fields.level"         defaultValue="level"/>
+    <!-- Access log top-level field names (override via wiretap.access-log.fields.*) -->
+    <springProperty scope="context" name="f_timestamp"   source="wiretap.access-log.fields.timestamp"    defaultValue="@timestamp"/>
+    <springProperty scope="context" name="f_env"         source="wiretap.access-log.fields.env"           defaultValue="env"/>
+    <springProperty scope="context" name="f_system"      source="wiretap.access-log.fields.system"        defaultValue="system"/>
+    <springProperty scope="context" name="f_inst"        source="wiretap.access-log.fields.instance"      defaultValue="inst"/>
+    <springProperty scope="context" name="f_lb_trace_id" source="wiretap.access-log.fields.lb-trace-id"   defaultValue="lb_trace_id"/>
+    <springProperty scope="context" name="f_level"       source="wiretap.access-log.fields.level"         defaultValue="level"/>
 </included>

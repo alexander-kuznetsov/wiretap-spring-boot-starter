@@ -19,32 +19,7 @@
                         </then>
                     </if>
                     <providers>
-                        <pattern>
-                            <omitEmptyFields>true</omitEmptyFields>
-                            <pattern>
-                                {
-                                "@timestamp": "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}",
-                                "env":"${ACTIVE_PROFILE}",
-                                "system":"${APP_NAME}",
-                                "inst":"${HOSTNAME}",
-                                "lb_trace_id": "%mdc{lb-trace-id}",
-                                "session_key": "%mdc{session-key}",
-                                "trace_id": "%X{traceId:-}",
-                                "span_id": "%X{spanId:-}",
-                                "parent_id": "%X{parentId:-}",
-                                "level": "%level",
-                                "class": "%class",
-                                "method": "%method",
-                                "line": "%line",
-                                "file": "%file",
-                                "thread_name": "%thread",
-                                "message": "%maskedMsg",
-                                "http_info": "#asJson{%mdc{HTTP-REQUEST-LOG}}",
-                                "db_query_info": "#asJson{%mdc{DB-QUERY-INFO}}",
-                                "extra": "#asJson{%mdc{LOG_EXTRA}}"
-                                }
-                            </pattern>
-                        </pattern>
+                        <provider class="io.wiretap.applog.provider.LazyStandardLogFieldsProvider"/>
                         <stackTrace>
                             <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
                                 <maxDepthPerThrowable>${stackTraceMaxDepth}</maxDepthPerThrowable>
@@ -52,6 +27,7 @@
                                 <rootCauseFirst>true</rootCauseFirst>
                             </throwableConverter>
                         </stackTrace>
+                        <provider class="io.wiretap.applog.provider.WiretapDelegatingLogFieldProvider"/>
                     </providers>
                 </encoder>
                 <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
