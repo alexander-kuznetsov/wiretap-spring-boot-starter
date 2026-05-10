@@ -324,6 +324,91 @@ wiretap:
       - "/health"
 ```
 
+## WebClient: non-blocking semantics and known limitations
+
+`WebClient` is a non-blocking HTTP client whose main wins are (1) many concurrent
+connections per event-loop thread and (2) backpressure for streaming bodies.
+Logging an HTTP exchange necessarily touches both — Wiretap aims to keep the
+filter pragmatic on the hot path while documenting the trade-offs honestly.
+
+**What the filter does that is fully non-blocking**
+
+- The reactive pipeline itself — capture, log, replay — stays inside
+  Reactor operators, no blocking I/O calls.
+- Connection-per-thread stays N:1; the event-loop thread is not pinned per
+  request.
+
+**What still runs synchronously on the event-loop thread (by default)**
+
+- Jackson serialization of the captured HTTP info (microseconds for small
+  payloads, can climb to milliseconds for larger ones).
+- The `log.info(...)` call goes through Logback's appender chain; the built-in
+  `ConsoleAppender` and `RollingFileAppender` write synchronously. Under load
+  (high QPS, large bodies) this becomes the dominant cost.
+
+**Streaming-aware capture (automatic)**
+
+Responses with the following content types are logged with metadata only —
+the body Flux is not joined or mutated, so SSE / NDJSON / large downloads pass
+through untouched:
+
+```
+text/event-stream         application/grpc
+application/x-ndjson      application/grpc+proto
+application/octet-stream  application/grpc+json
+multipart/x-mixed-replace
+```
+
+The `response_body` field will contain the marker
+`[streaming response — body not captured]` instead of the actual body.
+No configuration is required.
+
+**Visibility-aware capture**
+
+When `REQUEST_BODY` or `RESPONSE_BODY` visibility is `false` (globally or
+per-URL), the corresponding body is not captured at all — no decorator is
+attached to the request, no buffer drain happens on the response. This saves
+both memory and CPU compared to capturing first and discarding later.
+
+**Bounded capture**
+
+The captured string for the log line is hard-capped at
+`http-body-settings.max-body-length` (default 2KB). Bodies larger than this
+get the marker `...[truncated]` appended in the log; the full body is still
+delivered to the application unchanged.
+
+**Async logging (recommended for high-throughput WebClient workloads)**
+
+Wrap Wiretap's built-in appenders in a Logback `AsyncAppender`:
+
+```yaml
+wiretap:
+  async-logging:
+    enabled: true
+    queue-size: 1024
+    never-block: true              # drop events on overflow instead of blocking
+    discarding-threshold: 0        # 0 = never discard (default keeps Logback's queueSize/5)
+```
+
+With this enabled, `log.info(...)` returns to the event-loop thread as soon as
+the event is queued; the actual write happens on a dedicated worker thread.
+Confirm by checking the thread name on a logged WebClient line — it should be
+`AsyncAppender-Worker-...` rather than `reactor-http-nio-N`.
+
+**WebClient + Wiretap vs RestTemplate + Wiretap**
+
+| | RestTemplate + Wiretap | WebClient + Wiretap |
+|---|---|---|
+| Threading model | One thread per request | N requests per event-loop thread |
+| Body capture | Always full (in-memory) | Capped at `max-body-length` for the log line |
+| Streaming bodies | n/a (RestTemplate doesn't stream) | Auto-skipped |
+| Sync `log.info()` cost | Cheap (dedicated thread) | Pins the event-loop until appender returns — use `wiretap.async-logging.enabled` |
+
+If your WebClient calls are mostly small REST/GraphQL request/response and you
+serve modest QPS, the defaults are fine. For high-QPS, large-body, or
+streaming workloads, enable `async-logging` and double-check that
+`max-body-length` is tight enough to keep per-request memory predictable.
+
 ## Tracing
 
 Wiretap reads `trace_id` and `span_id` from the active Micrometer Tracing context

@@ -44,7 +44,24 @@ class AutoConfigurationSmokeTest {
             assertThat(ctx).hasSingleBean(RestClientLoggingInterceptor.class);
             assertThat(ctx).hasSingleBean(FeignClientWrapper.class);
             assertThat(ctx).hasSingleBean(WebClientLoggingFilter.class);
+            assertThat(ctx).hasSingleBean(WiretapAsyncLoggingProperties.class);
         });
+    }
+
+    @Test
+    void asyncLoggingPropertiesReflectsConfiguredOverrides() {
+        runner
+                .withPropertyValues(
+                        "wiretap.async-logging.enabled=true",
+                        "wiretap.async-logging.queue-size=1024",
+                        "wiretap.async-logging.never-block=true"
+                )
+                .run(ctx -> {
+                    WiretapAsyncLoggingProperties props = ctx.getBean(WiretapAsyncLoggingProperties.class);
+                    assertThat(props.isEnabled()).isTrue();
+                    assertThat(props.getQueueSize()).isEqualTo(1024);
+                    assertThat(props.isNeverBlock()).isTrue();
+                });
     }
 
     @Test

@@ -20,30 +20,51 @@ import java.util.function.Supplier;
 /**
  * Decorator over {@link ClientHttpRequest} that intercepts {@code writeWith()}
  * to capture the request body bytes without consuming them.
- * Uses a peek-then-reset pattern: reads each buffer, saves the bytes,
- * resets the read position, then passes the unchanged buffer to the delegate.
+ * <p>
+ * Uses a peek-then-reset pattern: reads each buffer up to the {@code maxCapture}
+ * cap, resets the read position, then passes the unchanged buffer to the
+ * delegate. Once the cap is reached, further bytes are not stored — but the
+ * downstream buffers are still forwarded as-is, so the wire payload is never
+ * truncated. Memory cost is bounded to {@code maxCapture} bytes regardless of
+ * payload size.
  */
 class CaptureBodyClientHttpRequest implements ClientHttpRequest {
 
+    static final String TRUNCATED_MARKER = "...[truncated]";
+
     private final ClientHttpRequest delegate;
+    private final int maxCapture;
     private final AtomicReference<String> capturedBody = new AtomicReference<>("");
 
-    CaptureBodyClientHttpRequest(ClientHttpRequest delegate) {
+    CaptureBodyClientHttpRequest(ClientHttpRequest delegate, int maxCapture) {
         this.delegate = delegate;
+        this.maxCapture = Math.max(0, maxCapture);
     }
 
     @Override
     public Mono<Void> writeWith(org.reactivestreams.Publisher<? extends DataBuffer> body) {
         List<byte[]> chunks = new ArrayList<>();
+        int[] captured = {0};
+        boolean[] truncated = {false};
         Flux<? extends DataBuffer> tapped = Flux.from(body)
                 .doOnNext(buffer -> {
+                    int avail = buffer.readableByteCount();
+                    if (avail == 0) return;
+                    int remaining = maxCapture - captured[0];
+                    if (remaining <= 0) {
+                        truncated[0] = true;
+                        return;
+                    }
+                    int toRead = Math.min(remaining, avail);
                     int pos = buffer.readPosition();
-                    byte[] bytes = new byte[buffer.readableByteCount()];
+                    byte[] bytes = new byte[toRead];
                     buffer.read(bytes);
                     buffer.readPosition(pos);
                     chunks.add(bytes);
+                    captured[0] += toRead;
+                    if (toRead < avail) truncated[0] = true;
                 })
-                .doOnComplete(() -> capturedBody.set(assembleChunks(chunks)));
+                .doOnComplete(() -> capturedBody.set(assembleChunks(chunks, truncated[0])));
         return delegate.writeWith(tapped);
     }
 
@@ -102,7 +123,7 @@ class CaptureBodyClientHttpRequest implements ClientHttpRequest {
         return capturedBody.get();
     }
 
-    private static String assembleChunks(List<byte[]> chunks) {
+    private static String assembleChunks(List<byte[]> chunks, boolean truncated) {
         int total = chunks.stream().mapToInt(c -> c.length).sum();
         byte[] all = new byte[total];
         int offset = 0;
@@ -110,6 +131,7 @@ class CaptureBodyClientHttpRequest implements ClientHttpRequest {
             System.arraycopy(chunk, 0, all, offset, chunk.length);
             offset += chunk.length;
         }
-        return new String(all, StandardCharsets.UTF_8);
+        String body = new String(all, StandardCharsets.UTF_8);
+        return truncated ? body + TRUNCATED_MARKER : body;
     }
 }

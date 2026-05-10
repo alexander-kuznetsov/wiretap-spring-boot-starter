@@ -11,5 +11,9 @@
     <springProperty scope="context" name="loggingPath" source="wiretap.file-logging.path" defaultValue="/var/log/wiretap"/>
     <springProperty scope="context" name="stackTraceMaxDepth" source="wiretap.stacktrace.max-depth" defaultValue="50"/>
     <springProperty scope="context" name="stackTraceMaxLength" source="wiretap.stacktrace.max-length" defaultValue="15000"/>
+    <springProperty scope="context" name="isAsyncLogging" source="wiretap.async-logging.enabled" defaultValue="false"/>
+    <springProperty scope="context" name="asyncQueueSize" source="wiretap.async-logging.queue-size" defaultValue="256"/>
+    <springProperty scope="context" name="asyncNeverBlock" source="wiretap.async-logging.never-block" defaultValue="false"/>
+    <springProperty scope="context" name="asyncDiscardingThreshold" source="wiretap.async-logging.discarding-threshold" defaultValue="-1"/>
     <conversionRule conversionWord="maskedMsg" converterClass="io.wiretap.applog.message.LazyCustomMaskingMessageConverter"/>
 </included>

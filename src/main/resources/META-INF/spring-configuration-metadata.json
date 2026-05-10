@@ -37,6 +37,30 @@
       "defaultValue": "15000"
     },
     {
+      "name": "wiretap.async-logging.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Wrap built-in CONSOLE/FILE-ROLLING appenders in a Logback AsyncAppender. Recommended for high-throughput WebClient workloads.",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.async-logging.queue-size",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of events held in the async queue.",
+      "defaultValue": 256
+    },
+    {
+      "name": "wiretap.async-logging.never-block",
+      "type": "java.lang.Boolean",
+      "description": "Drop events when the queue is full instead of blocking the producer thread.",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.async-logging.discarding-threshold",
+      "type": "java.lang.Integer",
+      "description": "Threshold below which Logback drops TRACE/DEBUG/INFO events as the queue fills. -1 keeps the Logback default (queueSize/5); 0 disables discarding.",
+      "defaultValue": -1
+    },
+    {
       "name": "wiretap.rest-controllers.http-body-settings",
       "type": "java.lang.String",
       "description": "Body logging settings"

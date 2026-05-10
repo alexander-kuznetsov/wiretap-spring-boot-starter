@@ -7,6 +7,22 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 ## [Unreleased]
 
 ### Added
+- Streaming-aware response logging for `WebClientLoggingFilter` — auto-detects
+  `text/event-stream`, `application/x-ndjson`, `application/octet-stream`,
+  `multipart/x-mixed-replace`, and gRPC content types and skips body buffering
+  for them. The body Flux passes through untouched, so SSE clients no longer
+  hang and large downloads no longer pin payload-sized memory.
+- Visibility-aware body capture in `WebClientLoggingFilter` — when
+  `REQUEST_BODY` or `RESPONSE_BODY` visibility is `false` for a URL, the
+  corresponding body is no longer wrapped or drained. Saves memory and CPU.
+- Pre-capture body size limit in `WebClientLoggingFilter` — the captured
+  string for the log line is hard-capped at `http-body-settings.max-body-length`
+  on the way through; bodies above the limit get a `...[truncated]` marker.
+- `wiretap.async-logging.*` — optional flag that wraps the built-in
+  `CONSOLE` / `FILE-ROLLING` appenders in a Logback `AsyncAppender`.
+  Recommended for high-throughput WebClient workloads where synchronous
+  appender writes on the reactor event-loop thread become a bottleneck.
+  Properties: `enabled`, `queue-size`, `never-block`, `discarding-threshold`.
 - `WebClientLoggingFilter` — outgoing `WebClient` calls are now logged automatically
   via `ExchangeFilterFunction`. The filter is registered through `WebClientCustomizer`
   on the auto-configured `WebClient.Builder`, so it covers any client built on top of

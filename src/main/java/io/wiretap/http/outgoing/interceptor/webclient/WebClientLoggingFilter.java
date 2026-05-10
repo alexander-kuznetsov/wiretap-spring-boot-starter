@@ -3,12 +3,14 @@ package io.wiretap.http.outgoing.interceptor.webclient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.wiretap.http.message.HttpMessageInfo;
-import io.wiretap.http.message.settings.AdditionalRequestHeaders;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
+import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField;
 import io.wiretap.http.message.settings.WebClientLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
+import io.wiretap.http.message.settings.body.HttpBodySettings;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
 import org.slf4j.Logger;
@@ -17,7 +19,6 @@ import org.slf4j.MDC;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.BodyExtractors;
@@ -29,9 +30,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -51,13 +52,45 @@ import static java.util.stream.Collectors.toMap;
  * {@code WebClient} (or any client built on top of it, such as
  * {@code graphql.kickstart.spring.webclient.boot.GraphQLWebClient}).
  * <p>
- * Registers itself automatically via {@link io.wiretap.configuration.WebClientInterceptorConfiguration}
- * which applies it to the auto-configured {@code WebClient.Builder}.
+ * Three guarantees keep the filter safe to install on any auto-configured
+ * {@code WebClient.Builder}:
+ * <ul>
+ *   <li><b>Streaming-aware</b> — responses with content types like
+ *       {@code text/event-stream}, {@code application/x-ndjson},
+ *       {@code application/octet-stream}, or gRPC variants are logged with
+ *       metadata only; the body Flux is never joined or mutated, so
+ *       Server-Sent Events and large downloads pass through untouched.</li>
+ *   <li><b>Visibility-aware capture</b> — when {@code REQUEST_BODY} or
+ *       {@code RESPONSE_BODY} visibility is disabled for a URL, the
+ *       corresponding body is not captured at all (no decorator, no buffer
+ *       drain) — saves both memory and CPU.</li>
+ *   <li><b>Bounded capture</b> — captured bytes are capped at
+ *       {@code httpBodySettings.maxBodyLength} on the way through, regardless
+ *       of payload size, so a multi-MB body never inflates heap usage past
+ *       the configured limit.</li>
+ * </ul>
  */
 public class WebClientLoggingFilter implements ExchangeFilterFunction {
 
     private static final Logger log = LoggerFactory.getLogger(WebClientLoggingFilter.class);
     private static final String HTTP_INFO_MDC_NAME = "HTTP-REQUEST-LOG";
+
+    /**
+     * Content types whose response bodies must never be buffered for logging.
+     * Joining them would either hang forever (SSE), break ordering guarantees,
+     * or pin large amounts of memory per request.
+     */
+    private static final Set<MediaType> STREAMING_CONTENT_TYPES = Set.of(
+            MediaType.TEXT_EVENT_STREAM,
+            MediaType.APPLICATION_NDJSON,
+            MediaType.APPLICATION_OCTET_STREAM,
+            MediaType.parseMediaType("multipart/x-mixed-replace"),
+            MediaType.parseMediaType("application/grpc"),
+            MediaType.parseMediaType("application/grpc+proto"),
+            MediaType.parseMediaType("application/grpc+json")
+    );
+
+    static final String STREAMING_BODY_MARKER = "[streaming response — body not captured]";
 
     private final WebClientLogMessageSettings settings;
     private final BodyParser bodyParser;
@@ -82,21 +115,31 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
             return next.exchange(request);
         }
 
+        HttpInfoLogMessageSettings urlSettings = settings.getRequestSettingsByUrl(requestUrl);
+        FieldVisibilityMap<HttpConfigurableField> visibility = urlSettings.getVisibilitySettings();
+        boolean captureRequestBody = Boolean.TRUE.equals(visibility.get(REQUEST_BODY));
+        boolean captureResponseBody = Boolean.TRUE.equals(visibility.get(RESPONSE_BODY));
+        int maxBodyLength = urlSettings.getHttpBodySettings().getMaxBodyLength();
+
         AtomicReference<String> capturedRequestBody = new AtomicReference<>("");
         long startTime = System.currentTimeMillis();
 
-        ClientRequest wrappedRequest = wrapRequestWithHeadersAndBodyCapture(request, requestUrl, capturedRequestBody);
+        ClientRequest wrappedRequest = wrapRequestWithHeadersAndOptionalBodyCapture(
+                request, requestUrl, capturedRequestBody, captureRequestBody, maxBodyLength);
 
         return next.exchange(wrappedRequest)
-                .flatMap(response -> bufferResponseAndLog(request, response, capturedRequestBody, startTime))
+                .flatMap(response -> handleResponse(
+                        request, response, capturedRequestBody, startTime,
+                        captureResponseBody, maxBodyLength))
                 .onErrorResume(ex -> {
                     logPartialRequest(request, capturedRequestBody.get(), startTime);
                     return Mono.error(ex);
                 });
     }
 
-    private ClientRequest wrapRequestWithHeadersAndBodyCapture(
-            ClientRequest original, String requestUrl, AtomicReference<String> capturedBody) {
+    private ClientRequest wrapRequestWithHeadersAndOptionalBodyCapture(
+            ClientRequest original, String requestUrl,
+            AtomicReference<String> capturedBody, boolean captureRequestBody, int maxCapture) {
 
         ClientRequest.Builder builder = ClientRequest.from(original);
 
@@ -108,33 +151,71 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
                     if (value != null) builder.header(name, value);
                 }));
 
+        if (!captureRequestBody) {
+            return builder.build();
+        }
+
         return builder
                 .body((outputMessage, context) -> {
-                    CaptureBodyClientHttpRequest capturing = new CaptureBodyClientHttpRequest(outputMessage);
+                    CaptureBodyClientHttpRequest capturing =
+                            new CaptureBodyClientHttpRequest(outputMessage, maxCapture);
                     return original.body().insert(capturing, context)
                             .doOnSuccess(v -> capturedBody.set(capturing.getCapturedBody()));
                 })
                 .build();
     }
 
-    private Mono<ClientResponse> bufferResponseAndLog(
+    private Mono<ClientResponse> handleResponse(
             ClientRequest request, ClientResponse response,
-            AtomicReference<String> capturedRequestBody, long startTime) {
+            AtomicReference<String> capturedRequestBody, long startTime,
+            boolean captureResponseBody, int maxCapture) {
+
+        MediaType responseContentType = response.headers().contentType().orElse(null);
+        boolean streaming = isStreaming(responseContentType);
+
+        if (streaming || !captureResponseBody) {
+            String marker = streaming ? STREAMING_BODY_MARKER : "";
+            long elapsed = System.currentTimeMillis() - startTime;
+            logFullRequest(request, capturedRequestBody.get(), response, marker, streaming, elapsed);
+            return Mono.just(response);
+        }
+
+        return joinAndLogResponseBody(request, response, capturedRequestBody, startTime, maxCapture);
+    }
+
+    /**
+     * Joins the response body, captures up to {@code maxCapture} bytes for the
+     * log line, then re-emits the full body downstream so consumers see the
+     * unchanged payload. Memory for the captured string is bounded; memory for
+     * the joined payload is not (downstream would consume it anyway).
+     * <p>
+     * Streaming and visibility-disabled cases are handled upstream and never
+     * reach this method.
+     */
+    private Mono<ClientResponse> joinAndLogResponseBody(
+            ClientRequest request, ClientResponse response,
+            AtomicReference<String> capturedRequestBody, long startTime, int maxCapture) {
 
         return DataBufferUtils.join(response.body(BodyExtractors.toDataBuffers()))
                 .defaultIfEmpty(DefaultDataBufferFactory.sharedInstance.wrap(new byte[0]))
                 .flatMap(joined -> {
                     try {
-                        byte[] bytes = new byte[joined.readableByteCount()];
-                        joined.read(bytes);
+                        int total = joined.readableByteCount();
+                        int captureSize = Math.min(total, maxCapture);
+                        byte[] all = new byte[total];
+                        joined.read(all);
                         DataBufferUtils.release(joined);
 
-                        String responseBody = new String(bytes, StandardCharsets.UTF_8);
+                        boolean truncated = total > maxCapture;
+                        String captured = new String(all, 0, captureSize, StandardCharsets.UTF_8);
+                        if (truncated) {
+                            captured += CaptureBodyClientHttpRequest.TRUNCATED_MARKER;
+                        }
                         long elapsed = System.currentTimeMillis() - startTime;
-                        logFullRequest(request, capturedRequestBody.get(), response, responseBody, elapsed);
+                        logFullRequest(request, capturedRequestBody.get(), response, captured, truncated, elapsed);
 
-                        DataBuffer replayBuffer = DefaultDataBufferFactory.sharedInstance.wrap(bytes);
-                        return Mono.just(response.mutate().body(Flux.just(replayBuffer)).build());
+                        DataBuffer replay = DefaultDataBufferFactory.sharedInstance.wrap(all);
+                        return Mono.just(response.mutate().body(Flux.just(replay)).build());
                     } catch (Exception e) {
                         DataBufferUtils.release(joined);
                         return Mono.error(e);
@@ -142,24 +223,36 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
                 });
     }
 
+    private static boolean isStreaming(MediaType contentType) {
+        if (contentType == null) return false;
+        for (MediaType streaming : STREAMING_CONTENT_TYPES) {
+            if (streaming.isCompatibleWith(contentType)) return true;
+        }
+        return false;
+    }
+
     private void logFullRequest(
             ClientRequest request, String requestBodyStr,
-            ClientResponse response, String responseBodyStr, long elapsed) {
+            ClientResponse response, String responseBodyStr,
+            boolean useResponseStringAsIs, long elapsed) {
         try {
             String requestUrl = request.url().toString();
-            String specificUrl = requestUrl;
-            var specificSettings = settings.getRequestSettingsByUrl(specificUrl);
+            HttpInfoLogMessageSettings specificSettings = settings.getRequestSettingsByUrl(requestUrl);
             FieldVisibilityMap<HttpConfigurableField> visibility = specificSettings.getVisibilitySettings();
+            HttpBodySettings bodySettings = specificSettings.getHttpBodySettings();
 
             MediaType requestContentType = request.headers().getContentType();
             MediaType responseContentType = response.headers().contentType().orElse(null);
 
-            Supplier<JsonNode> requestBodySupplier = () ->
-                    bodyParser.parseRequestBody(requestBodyStr, requestUrl, requestContentType,
-                            specificSettings.getHttpBodySettings());
-            Supplier<JsonNode> responseBodySupplier = () ->
-                    bodyParser.parseResponseBody(responseBodyStr, requestUrl, responseContentType,
-                            specificSettings.getHttpBodySettings());
+            boolean requestTruncated = requestBodyStr != null
+                    && requestBodyStr.endsWith(CaptureBodyClientHttpRequest.TRUNCATED_MARKER);
+
+            Supplier<JsonNode> requestBodySupplier = requestTruncated
+                    ? () -> new TextNode(requestBodyStr)
+                    : () -> bodyParser.parseRequestBody(requestBodyStr, requestUrl, requestContentType, bodySettings);
+            Supplier<JsonNode> responseBodySupplier = useResponseStringAsIs
+                    ? () -> new TextNode(responseBodyStr)
+                    : () -> bodyParser.parseResponseBody(responseBodyStr, requestUrl, responseContentType, bodySettings);
 
             Supplier<Map<String, String>> requestHeadersSupplier =
                     headersSupplier(specificSettings.getRequestHeaders(), request.headers().toSingleValueMap());
@@ -189,11 +282,14 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
     private void logPartialRequest(ClientRequest request, String requestBodyStr, long startTime) {
         try {
             String requestUrl = request.url().toString();
-            var specificSettings = settings.getRequestSettingsByUrl(requestUrl);
+            HttpInfoLogMessageSettings specificSettings = settings.getRequestSettingsByUrl(requestUrl);
             FieldVisibilityMap<HttpConfigurableField> visibility = specificSettings.getVisibilitySettings();
 
-            Supplier<JsonNode> requestBodySupplier = () ->
-                    bodyParser.parseRequestBody(requestBodyStr, requestUrl,
+            boolean requestTruncated = requestBodyStr != null
+                    && requestBodyStr.endsWith(CaptureBodyClientHttpRequest.TRUNCATED_MARKER);
+            Supplier<JsonNode> requestBodySupplier = requestTruncated
+                    ? () -> new TextNode(requestBodyStr)
+                    : () -> bodyParser.parseRequestBody(requestBodyStr, requestUrl,
                             request.headers().getContentType(), specificSettings.getHttpBodySettings());
             Supplier<Map<String, String>> requestHeadersSupplier =
                     headersSupplier(specificSettings.getRequestHeaders(), request.headers().toSingleValueMap());

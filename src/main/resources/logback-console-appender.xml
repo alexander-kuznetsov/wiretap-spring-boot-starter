@@ -42,7 +42,22 @@
         </else>
     </if>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-    </root>
+    <if condition='property("isAsyncLogging").equals("true")'>
+        <then>
+            <appender name="ASYNC-CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+                <queueSize>${asyncQueueSize}</queueSize>
+                <neverBlock>${asyncNeverBlock}</neverBlock>
+                <discardingThreshold>${asyncDiscardingThreshold}</discardingThreshold>
+                <appender-ref ref="CONSOLE"/>
+            </appender>
+            <root level="INFO">
+                <appender-ref ref="ASYNC-CONSOLE"/>
+            </root>
+        </then>
+        <else>
+            <root level="INFO">
+                <appender-ref ref="CONSOLE"/>
+            </root>
+        </else>
+    </if>
 </included>

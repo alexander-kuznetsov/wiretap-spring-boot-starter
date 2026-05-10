@@ -39,9 +39,24 @@
                 </filter>
             </appender>
 
-            <root level="INFO">
-                <appender-ref ref="FILE-ROLLING"/>
-            </root>
+            <if condition='property("isAsyncLogging").equals("true")'>
+                <then>
+                    <appender name="ASYNC-FILE" class="ch.qos.logback.classic.AsyncAppender">
+                        <queueSize>${asyncQueueSize}</queueSize>
+                        <neverBlock>${asyncNeverBlock}</neverBlock>
+                        <discardingThreshold>${asyncDiscardingThreshold}</discardingThreshold>
+                        <appender-ref ref="FILE-ROLLING"/>
+                    </appender>
+                    <root level="INFO">
+                        <appender-ref ref="ASYNC-FILE"/>
+                    </root>
+                </then>
+                <else>
+                    <root level="INFO">
+                        <appender-ref ref="FILE-ROLLING"/>
+                    </root>
+                </else>
+            </if>
         </then>
     </if>
 </included>
