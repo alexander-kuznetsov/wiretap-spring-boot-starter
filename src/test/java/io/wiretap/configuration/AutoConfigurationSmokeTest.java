@@ -8,6 +8,7 @@ import io.micrometer.tracing.Tracer;
 import io.wiretap.http.outgoing.interceptor.feignclient.FeignClientWrapper;
 import io.wiretap.http.outgoing.interceptor.rest.RestClientLoggingInterceptor;
 import io.wiretap.http.outgoing.interceptor.rest.RestTemplateLoggingInterceptor;
+import io.wiretap.http.outgoing.interceptor.webclient.WebClientLoggingFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
@@ -19,12 +20,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Boots the library autoconfiguration and verifies all key beans are wired.
- * This catches regressions in component scan, conditional beans, and constructor signatures.
+ * This catches regressions in the configuration tree, conditional beans, and constructor signatures.
  */
 class AutoConfigurationSmokeTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class, LoggerConfiguration.class))
+            .withConfiguration(AutoConfigurations.of(
+                    JacksonAutoConfiguration.class, WiretapAutoConfiguration.class,
+                    WebClientInterceptorConfiguration.class))
             .withUserConfiguration(StubTracerConfig.class);
 
     @Test
@@ -40,6 +43,7 @@ class AutoConfigurationSmokeTest {
             assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
             assertThat(ctx).hasSingleBean(RestClientLoggingInterceptor.class);
             assertThat(ctx).hasSingleBean(FeignClientWrapper.class);
+            assertThat(ctx).hasSingleBean(WebClientLoggingFilter.class);
         });
     }
 

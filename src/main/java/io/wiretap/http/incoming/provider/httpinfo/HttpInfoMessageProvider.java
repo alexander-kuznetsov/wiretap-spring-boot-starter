@@ -8,11 +8,9 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import io.wiretap.http.message.HttpMessageInfo;
 import io.wiretap.http.message.HttpMessageInfo.RequestDirection;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
@@ -48,7 +46,6 @@ import static io.wiretap.util.MaskUtil.maskPhoneNumber;
  * full {@code http_info} object describing the inbound HTTP request and response.
  */
 @Slf4j
-@Component
 public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
     private final BodyParser bodyParser;
     private final RestControllerLogMessageSettings logSettings;
@@ -56,7 +53,6 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     private final boolean isPrettyLog;
     private final HttpAccessFieldNames httpFieldNames;
 
-    @Autowired
     public HttpInfoMessageProvider(
             final BodyParser bodyParser,
             final RestControllerLogMessageSettings logSettings,

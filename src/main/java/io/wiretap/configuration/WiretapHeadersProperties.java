@@ -2,7 +2,6 @@ package io.wiretap.configuration;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
@@ -21,7 +20,6 @@ import java.util.List;
  *       - eKassir-PointID
  * </pre>
  */
-@Component
 @ConfigurationProperties(prefix = "wiretap.headers")
 @Data
 public class WiretapHeadersProperties {

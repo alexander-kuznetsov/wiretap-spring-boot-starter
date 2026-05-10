@@ -6,10 +6,8 @@ import jakarta.xml.soap.MimeHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import org.springframework.ws.WebServiceMessage;
 import org.springframework.ws.client.WebServiceClientException;
 import org.springframework.ws.client.support.interceptor.ClientInterceptorAdapter;
@@ -64,7 +62,6 @@ import static io.wiretap.util.MaskUtil.maskPhoneNumber;
  * webServiceTemplate.setInterceptors(new ClientInterceptor[]{webServiceTemplateLoggingInterceptor});
  * </pre>
  */
-@Component
 public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapter {
     private static final Logger log = LoggerFactory.getLogger(WebServiceTemplateLoggingInterceptor.class);
     private static final String CUSTOM_LOG_MESSAGE = "HTTP-REQUEST-LOG";
@@ -74,7 +71,6 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpAccessFieldNames httpFieldNames;
 
-    @Autowired
     public WebServiceTemplateLoggingInterceptor(
             WebServiceTemplateLogMessageSettings soapLogSettings,
             BodyParser bodyParser,

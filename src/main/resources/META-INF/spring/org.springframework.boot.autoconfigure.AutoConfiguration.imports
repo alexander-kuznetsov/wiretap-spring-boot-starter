@@ -1,2 +1,3 @@
-io.wiretap.configuration.LoggerConfiguration
+io.wiretap.configuration.WiretapAutoConfiguration
+io.wiretap.configuration.WebClientInterceptorConfiguration
 io.wiretap.configuration.HttpAccessEventEncoderConfiguration

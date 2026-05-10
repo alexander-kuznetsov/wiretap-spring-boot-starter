@@ -3,7 +3,7 @@
 # Wiretap
 
 > Structured JSON logging for Spring Boot applications, with HTTP request/response
-> capture across servlet, RestTemplate, RestClient, FeignClient, and WebServiceTemplate.
+> capture across servlet, RestTemplate, RestClient, FeignClient, WebClient, and WebServiceTemplate.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -68,9 +68,10 @@ dependencies {
 
 That's it — no configuration is required. Wiretap auto-configures itself via Spring Boot's
 auto-configuration mechanism. Logs are emitted to stdout in JSON format. Inbound HTTP
-traffic is captured automatically; outbound capture happens for any `RestTemplate` /
-`RestClient` / `FeignClient` / `WebServiceTemplate` constructed via Spring's
-auto-configured builders.
+traffic is captured automatically; outbound capture happens for any `RestTemplate` / `RestClient` / `FeignClient` /
+`WebClient` / `WebServiceTemplate` constructed via Spring's auto-configured builders.
+`WebClient`-based clients such as `graphql.kickstart.spring.webclient.boot.GraphQLWebClient`
+are covered automatically through the same `WebClient.Builder` customizer.
 
 To also write logs to a rolling file:
 
@@ -259,7 +260,7 @@ public class SessionKeyFieldProvider implements WiretapAccessFieldProvider {
 
 ## What gets logged
 
-Wiretap captures HTTP traffic from five sources, each configurable independently.
+Wiretap captures HTTP traffic from six sources, each configurable independently.
 Each source has its own property prefix:
 
 | Traffic | Prefix | Toggle |
@@ -268,6 +269,7 @@ Each source has its own property prefix:
 | Outbound `RestTemplate` | `wiretap.rest-template-interceptor.*` | `.enabled=false` to disable |
 | Outbound `RestClient` | `wiretap.rest-client-interceptor.*` | `.enabled=false` to disable |
 | Outbound `FeignClient` | `wiretap.feign-client-interceptor.*` | `.enabled=false` to disable |
+| Outbound `WebClient` / `GraphQLWebClient` | `wiretap.web-client-interceptor.*` | `.enabled=false` to disable |
 | Outbound `WebServiceTemplate` (SOAP) | `wiretap.web-service-template-interceptor.*` | `.enabled=false` to disable |
 
 ### Field visibility

@@ -65,6 +65,8 @@ dependencies {
     implementation 'org.springframework.ws:spring-ws-core'
     implementation 'javax.xml.soap:javax.xml.soap-api:1.4.0'
 
+    compileOnly 'org.springframework.boot:spring-boot-starter-webflux'
+
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
 

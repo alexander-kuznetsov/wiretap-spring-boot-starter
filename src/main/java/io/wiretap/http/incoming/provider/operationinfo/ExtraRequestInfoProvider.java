@@ -10,8 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -21,7 +19,6 @@ import java.util.Optional;
  * (business context, operation metadata, etc.) into HTTP access logs.
  */
 @Slf4j
-@Component
 public class ExtraRequestInfoProvider extends AbstractFieldJsonProvider<IAccessEvent> {
     private final ObjectMapper mapper;
     private final boolean isPrettyLog;

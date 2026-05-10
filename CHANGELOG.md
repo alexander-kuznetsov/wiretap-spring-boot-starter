@@ -7,6 +7,13 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 ## [Unreleased]
 
 ### Added
+- `WebClientLoggingFilter` — outgoing `WebClient` calls are now logged automatically
+  via `ExchangeFilterFunction`. The filter is registered through `WebClientCustomizer`
+  on the auto-configured `WebClient.Builder`, so it covers any client built on top of
+  it — including `graphql.kickstart.spring.webclient.boot.GraphQLWebClient`.
+  Configuration prefix: `wiretap.web-client-interceptor.*`; disable with
+  `wiretap.web-client-interceptor.enabled=false`. The feature activates only when
+  `spring-webflux` is on the classpath (`@ConditionalOnClass`).
 - `WiretapAccessLogFieldsProperties` — every JSON field name in access logs and
   outgoing HTTP logs is configurable via `wiretap.access-log.fields.*`. Defaults match
   the original Wiretap schema (no breaking change for the defaults themselves).
@@ -24,6 +31,10 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 - Initial test suite (JUnit 5 + AssertJ + Mockito + WireMock).
 
 ### Changed
+- Internal configuration refactored: `LoggerConfiguration` (with `@ComponentScan`)
+  replaced by a tree of focused `@Configuration` classes (`WiretapAutoConfiguration`
+  + per-client sub-configurations imported via `@Import`). All settings classes use
+  `@ConfigurationProperties` only (no `@Component`). YAML properties are unchanged.
 - **Breaking:** `wiretap.fields.*` renamed to `wiretap.access-log.fields.*`.
   Update your `application.yml` if you customised any access-log field names.
 - **Breaking:** application log fields are now written by `WiretapStandardLogFieldsProvider`

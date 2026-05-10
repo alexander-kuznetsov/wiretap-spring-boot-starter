@@ -4,14 +4,12 @@ import ch.qos.logback.access.spi.IAccessEvent;
 import com.fasterxml.jackson.core.JsonGenerator;
 import jakarta.annotation.PostConstruct;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
-import org.springframework.stereotype.Component;
 import io.wiretap.configuration.WiretapAccessLogFieldsProperties;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
 import io.wiretap.util.MaskUtil;
 
 import java.io.IOException;
 
-@Component
 public class MessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
 
     private static final String MESSAGE_PATTERN = "Captured incoming http request %s";

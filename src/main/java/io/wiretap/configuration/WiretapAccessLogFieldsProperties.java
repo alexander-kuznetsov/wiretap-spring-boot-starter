@@ -6,7 +6,6 @@ import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 /**
  * Configurable JSON field names for Wiretap HTTP access logs.
@@ -22,7 +21,6 @@ import org.springframework.stereotype.Component;
  *         return-code: status
  * </pre>
  */
-@Component
 @ConfigurationProperties(prefix = "wiretap.access-log.fields")
 @Data
 public class WiretapAccessLogFieldsProperties {

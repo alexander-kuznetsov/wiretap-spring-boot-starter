@@ -4,13 +4,11 @@ import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 import io.wiretap.http.incoming.filter.LazyIncomingRequestLogFilter;
 
 import java.util.Collection;
 import java.util.Collections;
 
-@Component
 @ConfigurationProperties(prefix = "wiretap.rest-controllers")
 public class RestControllerLogMessageSettings extends HttpInfoLogMessageSettings {
 

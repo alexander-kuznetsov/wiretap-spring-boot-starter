@@ -7,7 +7,6 @@ import io.wiretap.applog.message.handler.MessageMaskingHandler;
 import io.wiretap.configuration.WiretapAppLogProperties;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
@@ -19,7 +18,6 @@ import java.io.IOException;
  * On startup the bean registers itself into {@link LazyStandardLogFieldsProvider}
  * so Logback can call it once the Spring context is ready.
  */
-@Component
 public class WiretapStandardLogFieldsProvider {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
