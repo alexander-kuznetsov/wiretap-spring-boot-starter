@@ -101,7 +101,7 @@ class RestTemplateLoggingInterceptorTest {
         RestTemplateLogMessageSettings settings = new RestTemplateLogMessageSettings();
         settings.setExcludeRequestPatterns(java.util.List.of(".*/actuator/.*"));
         RestTemplateLoggingInterceptor interceptor = new RestTemplateLoggingInterceptor(
-                settings, new DefaultBodyParser(), new HttpAccessFieldNames());
+                settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null);
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.getInterceptors().add(interceptor);
 
@@ -133,7 +133,7 @@ class RestTemplateLoggingInterceptorTest {
         RestTemplateLogMessageSettings settings = new RestTemplateLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);
         RestTemplateLoggingInterceptor interceptor = new RestTemplateLoggingInterceptor(
-                settings, new DefaultBodyParser(), fieldNames);
+                settings, new DefaultBodyParser(null), fieldNames, null);
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.getInterceptors().add(interceptor);
         return restTemplate;

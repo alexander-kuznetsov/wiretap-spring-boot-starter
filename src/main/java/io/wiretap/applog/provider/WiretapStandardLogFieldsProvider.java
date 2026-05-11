@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.wiretap.applog.message.handler.MessageMaskingHandler;
 import io.wiretap.configuration.WiretapAppLogProperties;
 import jakarta.annotation.PostConstruct;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.io.IOException;
@@ -23,6 +24,7 @@ public class WiretapStandardLogFieldsProvider {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final WiretapAppLogProperties props;
+    @Nullable
     private final MessageMaskingHandler maskingHandler;
     private final String activeProfile;
     private final String appName;
@@ -30,7 +32,7 @@ public class WiretapStandardLogFieldsProvider {
 
     public WiretapStandardLogFieldsProvider(
             WiretapAppLogProperties props,
-            MessageMaskingHandler maskingHandler,
+            @Nullable MessageMaskingHandler maskingHandler,
             @Value("${spring.profiles.active:}") String activeProfile,
             @Value("${spring.application.name:}") String appName,
             @Value("${HOSTNAME:}") String hostname
@@ -108,7 +110,7 @@ public class WiretapStandardLogFieldsProvider {
 
         if (props.isVisible(AppLogField.MESSAGE)) {
             String msg = event.getFormattedMessage();
-            if (msg != null) {
+            if (msg != null && maskingHandler != null) {
                 msg = maskingHandler.maskMessage(msg);
             }
             gen.writeStringField(f.getMessage(), msg);

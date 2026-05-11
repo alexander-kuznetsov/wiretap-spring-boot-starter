@@ -1,9 +1,11 @@
 package io.wiretap.configuration;
 
+import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.WebClientLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.webclient.WebClientLoggingFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,9 +31,10 @@ public class WebClientInterceptorConfiguration {
     public WebClientLoggingFilter webClientLoggingFilter(
             WebClientLogMessageSettings settings,
             BodyParser bodyParser,
-            HttpAccessFieldNames httpFieldNames
+            HttpAccessFieldNames httpFieldNames,
+            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler
     ) {
-        return new WebClientLoggingFilter(settings, bodyParser, httpFieldNames);
+        return new WebClientLoggingFilter(settings, bodyParser, httpFieldNames, urlMaskingHandler);
     }
 
     @ConditionalOnProperty(name = "wiretap.web-client-interceptor.enabled", havingValue = "true", matchIfMissing = true)

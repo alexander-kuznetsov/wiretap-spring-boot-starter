@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.wiretap.http.message.HttpMessageInfo;
+import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField;
@@ -43,8 +44,7 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_BODY;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_HEADERS;
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
-import static io.wiretap.util.MaskUtil.maskAllPans;
-import static io.wiretap.util.MaskUtil.maskPhoneNumber;
+import org.jetbrains.annotations.Nullable;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -95,16 +95,20 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
     private final WebClientLogMessageSettings settings;
     private final BodyParser bodyParser;
     private final HttpAccessFieldNames httpFieldNames;
+    @Nullable
+    private final HttpUrlMaskingHandler urlMaskingHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public WebClientLoggingFilter(
             WebClientLogMessageSettings settings,
             BodyParser bodyParser,
-            HttpAccessFieldNames httpFieldNames
+            HttpAccessFieldNames httpFieldNames,
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler
     ) {
         this.settings = settings;
         this.bodyParser = bodyParser;
         this.httpFieldNames = httpFieldNames;
+        this.urlMaskingHandler = urlMaskingHandler;
     }
 
     @Override
@@ -324,7 +328,8 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
 
     private String maskedUrl(String url) {
         if (url == null) return null;
-        return settings.isEnableUrlMasking() ? maskPhoneNumber(maskAllPans(url, true)) : url;
+        return settings.isEnableUrlMasking() && urlMaskingHandler != null
+                ? urlMaskingHandler.maskUrl(url) : url;
     }
 
     private Supplier<Map<String, String>> headersSupplier(

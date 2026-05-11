@@ -6,7 +6,8 @@ import jakarta.annotation.PostConstruct;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import io.wiretap.configuration.WiretapAccessLogFieldsProperties;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
-import io.wiretap.util.MaskUtil;
+import io.wiretap.http.message.HttpUrlMaskingHandler;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 
@@ -15,11 +16,18 @@ public class MessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
     private static final String MESSAGE_PATTERN = "Captured incoming http request %s";
 
     private final boolean isUrlMaskingEnabled;
+    @Nullable
+    private final HttpUrlMaskingHandler urlMaskingHandler;
 
-    public MessageProvider(RestControllerLogMessageSettings settings, WiretapAccessLogFieldsProperties fieldNames) {
+    public MessageProvider(
+            RestControllerLogMessageSettings settings,
+            WiretapAccessLogFieldsProperties fieldNames,
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+    ) {
         super();
         setFieldName(fieldNames.getMessage());
         this.isUrlMaskingEnabled = settings.isEnableUrlMasking();
+        this.urlMaskingHandler = urlMaskingHandler;
     }
 
     @PostConstruct
@@ -38,6 +46,6 @@ public class MessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
     }
 
     private String getMasked(String url) {
-        return MaskUtil.maskPhoneNumber(MaskUtil.maskAllPans(url, true));
+        return urlMaskingHandler != null ? urlMaskingHandler.maskUrl(url) : url;
     }
 }

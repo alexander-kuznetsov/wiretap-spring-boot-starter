@@ -22,6 +22,7 @@ import io.wiretap.http.message.settings.AdditionalRequestHeaders;
 import io.wiretap.http.message.settings.FeignClientMessageSettings;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
+import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
@@ -48,16 +49,28 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_BODY;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_HEADERS;
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
-import static io.wiretap.util.MaskUtil.maskAllPans;
-import static io.wiretap.util.MaskUtil.maskPhoneNumber;
-
 @Slf4j
-@RequiredArgsConstructor
 public class FeignClientWrapper implements Client {
     private final Client delegate;
     private final BodyParser bodyParser;
     private final FeignClientMessageSettings commonRestLogSettings;
     private final HttpAccessFieldNames httpFieldNames;
+    @Nullable
+    private final HttpUrlMaskingHandler urlMaskingHandler;
+
+    public FeignClientWrapper(
+            Client delegate,
+            BodyParser bodyParser,
+            FeignClientMessageSettings commonRestLogSettings,
+            HttpAccessFieldNames httpFieldNames,
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+    ) {
+        this.delegate = delegate;
+        this.bodyParser = bodyParser;
+        this.commonRestLogSettings = commonRestLogSettings;
+        this.httpFieldNames = httpFieldNames;
+        this.urlMaskingHandler = urlMaskingHandler;
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String HTTP_INFO_MDC_NAME = "HTTP-REQUEST-LOG";
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
@@ -230,8 +243,8 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
     }
 
     private String getMaskedRequestUrl(String notMaskedUrl) {
-        return commonRestLogSettings.isEnableUrlMasking() ?
-                maskPhoneNumber(maskAllPans(notMaskedUrl, true)) : notMaskedUrl;
+        return commonRestLogSettings.isEnableUrlMasking() && urlMaskingHandler != null
+                ? urlMaskingHandler.maskUrl(notMaskedUrl) : notMaskedUrl;
     }
 
     /** Copies configured additional headers from MDC into the outgoing request. */

@@ -50,8 +50,8 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_BODY;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_HEADERS;
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
-import static io.wiretap.util.MaskUtil.maskAllPans;
-import static io.wiretap.util.MaskUtil.maskPhoneNumber;
+import io.wiretap.http.message.HttpUrlMaskingHandler;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Logs outbound SOAP requests issued through Spring's {@code WebServiceTemplate} client
@@ -70,15 +70,19 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
     private final BodyParser bodyParser;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpAccessFieldNames httpFieldNames;
+    @Nullable
+    private final HttpUrlMaskingHandler urlMaskingHandler;
 
     public WebServiceTemplateLoggingInterceptor(
             WebServiceTemplateLogMessageSettings soapLogSettings,
             BodyParser bodyParser,
-            HttpAccessFieldNames httpFieldNames
+            HttpAccessFieldNames httpFieldNames,
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler
     ) {
         this.soapLogSettings = soapLogSettings;
         this.bodyParser = bodyParser;
         this.httpFieldNames = httpFieldNames;
+        this.urlMaskingHandler = urlMaskingHandler;
     }
 
     @Override
@@ -265,8 +269,8 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
     }
 
     private String getMaskedRequestUrl(String notMaskedUrl) {
-        return soapLogSettings.isEnableUrlMasking() ?
-                maskPhoneNumber(maskAllPans(notMaskedUrl, true)) : notMaskedUrl;
+        return soapLogSettings.isEnableUrlMasking() && urlMaskingHandler != null
+                ? urlMaskingHandler.maskUrl(notMaskedUrl) : notMaskedUrl;
     }
 
     private String convertDOMSourceToString(Source domSource) {

@@ -4,9 +4,9 @@ import ch.qos.logback.access.spi.IAccessEvent;
 import com.fasterxml.jackson.core.JsonGenerator;
 import io.wiretap.http.incoming.provider.httpinfo.LazyHttpInfoMessageProvider;
 import io.wiretap.http.incoming.provider.message.LazyMessageProvider;
-import io.wiretap.http.incoming.provider.operationinfo.LazyExtraRequestInfoProvider;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -22,11 +22,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
  */
 class LazyDelegatesTest {
 
+    @BeforeEach
     @AfterEach
     void clearStatics() {
         LazyMessageProvider.setProvider(null);
         LazyHttpInfoMessageProvider.setProvider(null);
-        LazyExtraRequestInfoProvider.setProvider(null);
     }
 
     @Test
@@ -65,16 +65,4 @@ class LazyDelegatesTest {
         verify(real).writeTo(gen, event);
     }
 
-    @Test
-    void lazyExtraRequestInfoProvider_delegatesToWiredProvider() throws IOException {
-        @SuppressWarnings("unchecked")
-        AbstractFieldJsonProvider<IAccessEvent> real = mock(AbstractFieldJsonProvider.class);
-        LazyExtraRequestInfoProvider.setProvider(real);
-        JsonGenerator gen = mock(JsonGenerator.class);
-        IAccessEvent event = mock(IAccessEvent.class);
-
-        new LazyExtraRequestInfoProvider().writeTo(gen, event);
-
-        verify(real).writeTo(gen, event);
-    }
 }

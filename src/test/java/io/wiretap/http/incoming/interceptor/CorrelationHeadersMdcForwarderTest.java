@@ -1,7 +1,6 @@
 package io.wiretap.http.incoming.interceptor;
 
 import io.wiretap.configuration.WiretapHeadersProperties;
-import io.wiretap.http.incoming.provider.operationinfo.ExtraRequestInfoContextKeeper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +21,6 @@ class CorrelationHeadersMdcForwarderTest {
     @BeforeEach
     void clearMdc() {
         MDC.clear();
-        ExtraRequestInfoContextKeeper.clear();
     }
 
     @AfterEach

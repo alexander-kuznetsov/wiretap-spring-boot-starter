@@ -38,8 +38,8 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
 import static io.wiretap.util.HttpBodyUtils.getXmlRequestType;
 import static io.wiretap.util.HttpBodyUtils.isXmlBody;
-import static io.wiretap.util.MaskUtil.maskAllPans;
-import static io.wiretap.util.MaskUtil.maskPhoneNumber;
+import io.wiretap.http.message.HttpUrlMaskingHandler;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Logback-access provider plugged into {@code logback-access.xml} that emits the
@@ -52,12 +52,15 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     private final ObjectMapper mapper;
     private final boolean isPrettyLog;
     private final HttpAccessFieldNames httpFieldNames;
+    @Nullable
+    private final HttpUrlMaskingHandler urlMaskingHandler;
 
     public HttpInfoMessageProvider(
             final BodyParser bodyParser,
             final RestControllerLogMessageSettings logSettings,
             @Value("${wiretap.pretty-print:false}") boolean isPrettyLog,
-            final WiretapAccessLogFieldsProperties fieldNames
+            final WiretapAccessLogFieldsProperties fieldNames,
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler
     ) {
         super();
         this.bodyParser = bodyParser;
@@ -66,6 +69,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
         this.logSettings = logSettings;
         this.isPrettyLog = isPrettyLog;
         this.httpFieldNames = fieldNames.getHttp();
+        this.urlMaskingHandler = urlMaskingHandler;
     }
 
     @PostConstruct
@@ -153,8 +157,8 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     }
 
     private String getMaskedRequestUrl(String notMaskedUrl) {
-        return logSettings.isEnableUrlMasking() ?
-                maskPhoneNumber(maskAllPans(notMaskedUrl, true)) : notMaskedUrl;
+        return logSettings.isEnableUrlMasking() && urlMaskingHandler != null
+                ? urlMaskingHandler.maskUrl(notMaskedUrl) : notMaskedUrl;
     }
 
     private String getXmlType(String requestContent, boolean isXmlBody) {

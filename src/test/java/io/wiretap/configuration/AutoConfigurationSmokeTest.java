@@ -2,7 +2,6 @@ package io.wiretap.configuration;
 
 import io.wiretap.http.incoming.provider.httpinfo.HttpInfoMessageProvider;
 import io.wiretap.http.incoming.provider.message.MessageProvider;
-import io.wiretap.http.incoming.provider.operationinfo.ExtraRequestInfoProvider;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.micrometer.tracing.Tracer;
 import io.wiretap.http.outgoing.interceptor.feignclient.FeignClientWrapper;
@@ -39,8 +38,7 @@ class AutoConfigurationSmokeTest {
             assertThat(ctx).hasSingleBean(HttpAccessFieldNames.class);
             assertThat(ctx).hasSingleBean(HttpInfoMessageProvider.class);
             assertThat(ctx).hasSingleBean(MessageProvider.class);
-            assertThat(ctx).hasSingleBean(ExtraRequestInfoProvider.class);
-            assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
+assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
             assertThat(ctx).hasSingleBean(RestClientLoggingInterceptor.class);
             assertThat(ctx).hasSingleBean(FeignClientWrapper.class);
             assertThat(ctx).hasSingleBean(WebClientLoggingFilter.class);

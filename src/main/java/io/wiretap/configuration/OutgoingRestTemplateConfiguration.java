@@ -1,9 +1,11 @@
 package io.wiretap.configuration;
 
+import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.RestTemplateLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.rest.RestTemplateLoggingInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
@@ -16,8 +18,9 @@ public class OutgoingRestTemplateConfiguration {
 
     @Bean
     public RestTemplateLoggingInterceptor restTemplateLoggingInterceptor(
-            RestTemplateLogMessageSettings settings, BodyParser bodyParser, HttpAccessFieldNames httpFieldNames) {
-        return new RestTemplateLoggingInterceptor(settings, bodyParser, httpFieldNames);
+            RestTemplateLogMessageSettings settings, BodyParser bodyParser, HttpAccessFieldNames httpFieldNames,
+            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler) {
+        return new RestTemplateLoggingInterceptor(settings, bodyParser, httpFieldNames, urlMaskingHandler);
     }
 
     @ConditionalOnProperty(name = "wiretap.rest-template-interceptor.enabled", havingValue = "true", matchIfMissing = true)

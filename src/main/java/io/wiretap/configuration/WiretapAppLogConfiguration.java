@@ -24,7 +24,7 @@ public class WiretapAppLogConfiguration {
     @Bean
     public WiretapStandardLogFieldsProvider wiretapStandardLogFieldsProvider(
             WiretapAppLogProperties props,
-            MessageMaskingHandler maskingHandler,
+            @Autowired(required = false) MessageMaskingHandler maskingHandler,
             @Value("${spring.profiles.active:}") String activeProfile,
             @Value("${spring.application.name:}") String appName,
             @Value("${HOSTNAME:}") String hostname

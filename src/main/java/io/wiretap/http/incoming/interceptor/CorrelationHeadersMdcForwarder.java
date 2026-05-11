@@ -1,7 +1,6 @@
 package io.wiretap.http.incoming.interceptor;
 
 import io.wiretap.configuration.WiretapHeadersProperties;
-import io.wiretap.http.incoming.provider.operationinfo.ExtraRequestInfoContextKeeper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jetbrains.annotations.NotNull;
@@ -30,7 +29,6 @@ public class CorrelationHeadersMdcForwarder implements HandlerInterceptor {
             @NotNull final HttpServletResponse response,
             @NotNull final Object handler
     ) {
-        ExtraRequestInfoContextKeeper.clear();
         for (String headerName : headerNames) {
             Optional.ofNullable(request.getHeader(headerName))
                     .ifPresent(headerValue -> MDC.put(headerName, headerValue));

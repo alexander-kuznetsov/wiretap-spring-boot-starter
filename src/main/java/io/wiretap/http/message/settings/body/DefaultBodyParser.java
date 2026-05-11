@@ -3,24 +3,29 @@ package io.wiretap.http.message.settings.body;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
-import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.function.TriFunction;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
 import io.wiretap.util.HttpBodyUtils;
-import io.wiretap.util.MaskUtil;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.function.BinaryOperator;
+import java.util.function.Function;
 
 import static org.springframework.util.FileCopyUtils.copyToByteArray;
 import static io.wiretap.util.HttpBodyUtils.isSupportedContentType;
 
-@NoArgsConstructor
 public class DefaultBodyParser implements BodyParser {
     private final ObjectMapper objectMapper = new ObjectMapper();
+    @Nullable
+    private final HttpBodyMaskingHandler maskingHandler;
+
+    public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler) {
+        this.maskingHandler = maskingHandler;
+    }
     private static final String NOT_SUPPORTED_TYPE = "Logging of content type %s is not supported";
     private static final String LIMIT_EXCEEDED = "body exceeds the configured limit of %d characters";
 
@@ -134,8 +139,10 @@ public class DefaultBodyParser implements BodyParser {
      * right place to apply masking for performance reasons.
      */
     protected JsonNode afterParseRequestBody(final JsonNode body, final String requestUrl, HttpBodySettings settings) {
-        return settings.isEnableBodyMasking() ?
-                HttpBodyUtils.maskFieldsInBody(body, MaskUtil::maskLog) : body;
+        if (!settings.isEnableBodyMasking() || maskingHandler == null) {
+            return body;
+        }
+        return HttpBodyUtils.maskFieldsInBody(body, maskingHandler::maskBodyField);
     }
 
     /**
@@ -144,7 +151,9 @@ public class DefaultBodyParser implements BodyParser {
      * right place to apply masking for performance reasons.
      */
     protected JsonNode afterParseResponseBody(final JsonNode body, final String requestUrl, HttpBodySettings settings) {
-        return settings.isEnableBodyMasking() ?
-                HttpBodyUtils.maskFieldsInBody(body, MaskUtil::maskLog) : body;
+        if (!settings.isEnableBodyMasking() || maskingHandler == null) {
+            return body;
+        }
+        return HttpBodyUtils.maskFieldsInBody(body, maskingHandler::maskBodyField);
     }
 }

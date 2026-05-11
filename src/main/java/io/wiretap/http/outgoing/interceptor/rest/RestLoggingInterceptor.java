@@ -50,8 +50,8 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
 import static io.wiretap.util.HttpBodyUtils.getXmlRequestType;
 import static io.wiretap.util.HttpBodyUtils.isXmlBody;
-import static io.wiretap.util.MaskUtil.maskAllPans;
-import static io.wiretap.util.MaskUtil.maskPhoneNumber;
+import io.wiretap.http.message.HttpUrlMaskingHandler;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Base interceptor that logs outbound HTTP requests issued through Spring's
@@ -65,18 +65,22 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
     private final String clientName;
     private final BodyParser bodyParser;
     private final HttpAccessFieldNames httpFieldNames;
+    @Nullable
+    private final HttpUrlMaskingHandler urlMaskingHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public RestLoggingInterceptor(
             final RestLogMessageSettings logMessageSettings,
             final BodyParser bodyParser,
             String clientName,
-            final HttpAccessFieldNames httpFieldNames
+            final HttpAccessFieldNames httpFieldNames,
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler
     ) {
         this.commonRestLogSettings = logMessageSettings;
         this.bodyParser = bodyParser;
         this.clientName = clientName;
         this.httpFieldNames = httpFieldNames;
+        this.urlMaskingHandler = urlMaskingHandler;
     }
 
 
@@ -225,8 +229,8 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
     }
 
     private String getMaskedRequestUrl(String notMaskedUrl) {
-        return commonRestLogSettings.isEnableUrlMasking() ?
-                maskPhoneNumber(maskAllPans(notMaskedUrl, true)) : notMaskedUrl;
+        return commonRestLogSettings.isEnableUrlMasking() && urlMaskingHandler != null
+                ? urlMaskingHandler.maskUrl(notMaskedUrl) : notMaskedUrl;
     }
 
     private String getXmlType(String requestContent, boolean isXmlBody) {
