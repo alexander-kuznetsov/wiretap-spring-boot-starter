@@ -127,6 +127,36 @@ wiretap:
       thread-name: thread
 ```
 
+## Extra structured fields
+
+The `extra` field in every app-log entry is populated from the MDC key `LOG_EXTRA`.
+`ExtraAppLogContextKeeper` is a thread-bound utility that manages that key: it keeps
+all extra fields in one JSON object so the root log structure stays clean.
+
+```java
+ExtraAppLogContextKeeper.putExtraField("order_id", "ord-42");
+ExtraAppLogContextKeeper.putExtraField("step", "validation");
+log.info("Payment step completed");
+ExtraAppLogContextKeeper.clearExtraContext();
+```
+
+`extra` in the resulting log entry:
+
+```json
+{ "order_id": "ord-42", "step": "validation" }
+```
+
+| Method | Description |
+|---|---|
+| `putExtraField(key, value)` | Add or update a field in the current thread's extra context |
+| `removeExtraField(key)` | Remove a single field; removes the MDC key when the last field is gone |
+| `clearExtraContext()` | Remove all extra fields for the current thread |
+
+MDC is not propagated automatically across threads. When you spawn async work
+(`@Async`, `CompletableFuture`, parallel streams), copy and restore MDC manually
+or use a `TaskDecorator`. Extra fields appear **only in app logs** — not in HTTP
+access logs.
+
 ## Customising access-log field names
 
 Default field names match the Wiretap schema. Override any name in `application.yml`:
@@ -300,19 +330,30 @@ wiretap:
       max-body-length: 10000        # truncate bodies longer than this
       max-field-length: 1000        # truncate string fields inside JSON bodies
       enable-body-truncating: true
-      enable-body-masking: false    # apply MaskUtil to bodies (PAN, phone, exp date, PIN)
-    enable-url-masking: true        # mask PAN/phone numbers in URLs
+      enable-body-masking: true     # call HttpBodyMaskingHandler for each body field value
+    enable-url-masking: true        # call HttpUrlMaskingHandler for the request URL
 ```
 
-Built-in `MaskUtil` recognises:
-- Card PAN (Luhn-checked or simple length-based)
-- Russian-format phone numbers (`+7...`)
-- Card expiry dates (in `"expiry": "2510"` style JSON values)
-- PIN blocks (16-char hex)
+Wiretap provides three independent masking SPI interfaces. Register only the beans
+you need — each context is opt-in:
 
-To plug in your own masking logic, expose a bean of type
-`io.wiretap.applog.message.handler.MessageMaskingHandler`. It is applied to
-unstructured `log.info(...)` messages.
+| Interface | Applied to | Activation |
+|---|---|---|
+| `io.wiretap.applog.message.handler.MessageMaskingHandler` | `message` field in app logs | bean present + `wiretap.message-masking=true` (default) |
+| `io.wiretap.http.message.settings.body.HttpBodyMaskingHandler` | each field value in HTTP request/response bodies | bean present + `enable-body-masking=true` |
+| `io.wiretap.http.message.HttpUrlMaskingHandler` | full request URL (path + query string) | bean present + `enable-url-masking=true` |
+
+When no bean is registered for a context, data passes through unchanged regardless of
+the flag value. Per-URL control via `specific-http-info-settings[].enable-body-masking`
+(and `enable-url-masking`) follows the same rule — the handler is only called when both
+the flag and the bean are present.
+
+Disable message masking globally even when a bean is registered:
+
+```yaml
+wiretap:
+  message-masking: false
+```
 
 ### Skipping URLs entirely
 

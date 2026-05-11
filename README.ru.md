@@ -127,6 +127,36 @@ wiretap:
       thread-name: thread
 ```
 
+## Дополнительные структурированные поля
+
+Поле `extra` в каждой записи лога приложения заполняется из MDC-ключа `LOG_EXTRA`.
+`ExtraAppLogContextKeeper` — thread-bound утилита для управления этим ключом: хранит
+все дополнительные поля в одном JSON-объекте, не засоряя корневую структуру лога.
+
+```java
+ExtraAppLogContextKeeper.putExtraField("order_id", "ord-42");
+ExtraAppLogContextKeeper.putExtraField("step", "validation");
+log.info("Шаг оплаты завершён");
+ExtraAppLogContextKeeper.clearExtraContext();
+```
+
+`extra` в итоговой записи лога:
+
+```json
+{ "order_id": "ord-42", "step": "validation" }
+```
+
+| Метод | Описание |
+|---|---|
+| `putExtraField(key, value)` | Добавить или обновить поле в extra-контексте текущего потока |
+| `removeExtraField(key)` | Удалить одно поле; убирает MDC-ключ, если полей больше не осталось |
+| `clearExtraContext()` | Очистить все дополнительные поля текущего потока |
+
+MDC не распространяется автоматически на дочерние потоки. При запуске асинхронной работы
+(`@Async`, `CompletableFuture`, parallel streams) копируйте и восстанавливайте MDC вручную
+или используйте `TaskDecorator`. Поля `extra` появляются **только в логах приложения** — в
+HTTP access-логах они отсутствуют.
+
 ## Настройка имён полей access-лога
 
 Имена полей по умолчанию соответствуют схеме Wiretap. Любое имя можно переопределить в `application.yml`:
@@ -300,19 +330,30 @@ wiretap:
       max-body-length: 10000        # обрезать тела длиннее этого
       max-field-length: 1000        # обрезать строковые поля внутри JSON-тел
       enable-body-truncating: true
-      enable-body-masking: false    # применять MaskUtil к телам (PAN, телефон, дата истечения, PIN)
-    enable-url-masking: true        # маскировать PAN/телефоны в URL
+      enable-body-masking: true     # вызывать HttpBodyMaskingHandler для каждого поля тела
+    enable-url-masking: true        # вызывать HttpUrlMaskingHandler для URL запроса
 ```
 
-Встроенный `MaskUtil` распознаёт:
-- Номер карты PAN (с проверкой по Луну или по длине)
-- Номера телефонов в российском формате (`+7...`)
-- Даты истечения карты (в значениях JSON вида `"expiry": "2510"`)
-- PIN-блоки (16-символьный hex)
+Wiretap предоставляет три независимых SPI-интерфейса для маскирования. Регистрируйте
+только те бины, которые нужны — каждый контекст независим:
 
-Чтобы подключить собственную логику маскирования, зарегистрируйте бин типа
-`io.wiretap.applog.message.handler.MessageMaskingHandler`. Он применяется к
-неструктурированным сообщениям `log.info(...)`.
+| Интерфейс | Применяется к | Активация |
+|---|---|---|
+| `io.wiretap.applog.message.handler.MessageMaskingHandler` | поле `message` в логах приложения | бин + `wiretap.message-masking=true` (по умолчанию) |
+| `io.wiretap.http.message.settings.body.HttpBodyMaskingHandler` | каждое поле в телах HTTP-запросов и ответов | бин + `enable-body-masking=true` |
+| `io.wiretap.http.message.HttpUrlMaskingHandler` | полный URL запроса (path + query string) | бин + `enable-url-masking=true` |
+
+Если бин для контекста не зарегистрирован, данные проходят без изменений независимо от
+значения флага. Точечное управление через `specific-http-info-settings[].enable-body-masking`
+(и `enable-url-masking`) работает по тому же правилу — хендлер вызывается только если
+и флаг, и бин присутствуют.
+
+Отключить маскирование сообщений глобально, даже при наличии бина:
+
+```yaml
+wiretap:
+  message-masking: false
+```
 
 ### Исключение URL из логирования
 

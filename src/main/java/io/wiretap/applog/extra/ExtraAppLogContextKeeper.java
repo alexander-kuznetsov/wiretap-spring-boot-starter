@@ -22,8 +22,8 @@ import java.util.Optional;
  * <b>Important:</b>
  * <ul>
  *   <li>MDC is not propagated automatically across threads
- *       (e.g. {@code @Async}, {@code CompletableFuture}). Use one of the helpers in
- *       {@code io.wiretap.util.mdc} for that.</li>
+ *       (e.g. {@code @Async}, {@code CompletableFuture}). Copy and restore MDC manually
+ *       or use a {@code TaskDecorator} when crossing thread boundaries.</li>
  *   <li>Extra fields are written only to regular logback application logs;
  *       they do not appear in HTTP access logs handled by logback-access.</li>
  * </ul>
