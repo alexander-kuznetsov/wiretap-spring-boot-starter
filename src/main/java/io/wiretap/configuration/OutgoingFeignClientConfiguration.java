@@ -1,6 +1,7 @@
 package io.wiretap.configuration;
 
 import feign.Client;
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.FeignClientMessageSettings;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
@@ -20,7 +21,8 @@ public class OutgoingFeignClientConfiguration {
     @Bean
     public Client loggingFeignClient(
             BodyParser bodyParser, FeignClientMessageSettings settings, HttpAccessFieldNames httpFieldNames,
-            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler) {
-        return new FeignClientWrapper(new Client.Default(null, null), bodyParser, settings, httpFieldNames, urlMaskingHandler);
+            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler,
+            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler) {
+        return new FeignClientWrapper(new Client.Default(null, null), bodyParser, settings, httpFieldNames, urlMaskingHandler, paramsMaskingHandler);
     }
 }

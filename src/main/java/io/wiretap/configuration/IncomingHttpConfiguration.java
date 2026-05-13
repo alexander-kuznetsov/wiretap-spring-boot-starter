@@ -6,6 +6,7 @@ import io.wiretap.http.incoming.filter.BufferedHttpBodyThreadCleaner;
 import io.wiretap.http.incoming.interceptor.CorrelationHeadersMdcForwarder;
 import io.wiretap.http.incoming.provider.httpinfo.HttpInfoMessageProvider;
 import io.wiretap.http.incoming.provider.message.MessageProvider;
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
@@ -53,9 +54,10 @@ public class IncomingHttpConfiguration implements WebMvcConfigurer {
             RestControllerLogMessageSettings logSettings,
             @Value("${wiretap.pretty-print:false}") boolean isPrettyLog,
             WiretapAccessLogFieldsProperties fieldNames,
-            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler
+            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler,
+            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler
     ) {
-        return new HttpInfoMessageProvider(bodyParser, logSettings, isPrettyLog, fieldNames, urlMaskingHandler);
+        return new HttpInfoMessageProvider(bodyParser, logSettings, isPrettyLog, fieldNames, urlMaskingHandler, paramsMaskingHandler);
     }
 
     @Bean

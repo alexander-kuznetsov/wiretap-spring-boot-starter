@@ -1,5 +1,6 @@
 package io.wiretap.http.outgoing.interceptor.rest;
 
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.RestClientLogMessageSettings;
@@ -15,8 +16,9 @@ public class RestClientLoggingInterceptor extends RestLoggingInterceptor {
             RestClientLogMessageSettings logMessageSettings,
             BodyParser bodyParser,
             HttpAccessFieldNames httpFieldNames,
-            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler,
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
     ) {
-        super(logMessageSettings, bodyParser, "RestClient", httpFieldNames, urlMaskingHandler);
+        super(logMessageSettings, bodyParser, "RestClient", httpFieldNames, urlMaskingHandler, paramsMaskingHandler);
     }
 }

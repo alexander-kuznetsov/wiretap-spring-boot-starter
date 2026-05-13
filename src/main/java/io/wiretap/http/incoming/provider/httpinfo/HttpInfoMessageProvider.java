@@ -38,6 +38,7 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
 import static io.wiretap.util.HttpBodyUtils.getXmlRequestType;
 import static io.wiretap.util.HttpBodyUtils.isXmlBody;
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import org.jetbrains.annotations.Nullable;
 
@@ -54,13 +55,16 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     private final HttpAccessFieldNames httpFieldNames;
     @Nullable
     private final HttpUrlMaskingHandler urlMaskingHandler;
+    @Nullable
+    private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
 
     public HttpInfoMessageProvider(
             final BodyParser bodyParser,
             final RestControllerLogMessageSettings logSettings,
             @Value("${wiretap.pretty-print:false}") boolean isPrettyLog,
             final WiretapAccessLogFieldsProperties fieldNames,
-            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler,
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
     ) {
         super();
         this.bodyParser = bodyParser;
@@ -70,6 +74,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
         this.isPrettyLog = isPrettyLog;
         this.httpFieldNames = fieldNames.getHttp();
         this.urlMaskingHandler = urlMaskingHandler;
+        this.paramsMaskingHandler = paramsMaskingHandler;
     }
 
     @PostConstruct
@@ -121,7 +126,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
                     .responseBody(responseBodyString)
                     .responseBodyLength(getResponseBodyLengthWithFallback(event)) // capture the original (pre-processing) body length
                     .xmlBodyType(getXmlType(event.getRequestContent(), isXmlBody))
-                    .requestParams(visibilityMap.getVisible(REQUEST_PARAMS, requestParamsSupplier))
+                    .requestParams(maskRequestParams(visibilityMap.getVisible(REQUEST_PARAMS, requestParamsSupplier)))
                     .requestHeaders(visibilityMap.getVisible(REQUEST_HEADERS, requestHeadersSupplier))
                     .responseHeaders(visibilityMap.getVisible(RESPONSE_HEADERS, responseHeadersSupplier))
                     .build();
@@ -159,6 +164,20 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     private String getMaskedRequestUrl(String notMaskedUrl) {
         return logSettings.isEnableUrlMasking() && urlMaskingHandler != null
                 ? urlMaskingHandler.maskUrl(notMaskedUrl) : notMaskedUrl;
+    }
+
+    private Map<String, List<String>> maskRequestParams(Map<String, List<String>> params) {
+        if (params == null
+                || !logSettings.isEnableRequestParamsMasking()
+                || paramsMaskingHandler == null) {
+            return params;
+        }
+        return params.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().stream()
+                                .map(v -> paramsMaskingHandler.maskParamValue(e.getKey(), v))
+                                .toList()));
     }
 
     private String getXmlType(String requestContent, boolean isXmlBody) {

@@ -1,5 +1,6 @@
 package io.wiretap.configuration;
 
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.RestTemplateLogMessageSettings;
@@ -19,8 +20,9 @@ public class OutgoingRestTemplateConfiguration {
     @Bean
     public RestTemplateLoggingInterceptor restTemplateLoggingInterceptor(
             RestTemplateLogMessageSettings settings, BodyParser bodyParser, HttpAccessFieldNames httpFieldNames,
-            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler) {
-        return new RestTemplateLoggingInterceptor(settings, bodyParser, httpFieldNames, urlMaskingHandler);
+            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler,
+            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler) {
+        return new RestTemplateLoggingInterceptor(settings, bodyParser, httpFieldNames, urlMaskingHandler, paramsMaskingHandler);
     }
 
     @ConditionalOnProperty(name = "wiretap.rest-template-interceptor.enabled", havingValue = "true", matchIfMissing = true)

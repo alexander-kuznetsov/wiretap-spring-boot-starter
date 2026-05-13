@@ -332,9 +332,10 @@ wiretap:
       enable-body-truncating: true
       enable-body-masking: true     # call HttpBodyMaskingHandler for each body field value
     enable-url-masking: true        # call HttpUrlMaskingHandler for the request URL
+    enable-request-params-masking: true   # call HttpRequestParamsMaskingHandler per query param
 ```
 
-Wiretap provides three independent masking SPI interfaces. Register only the beans
+Wiretap provides four independent masking SPI interfaces. Register only the beans
 you need — each context is opt-in:
 
 | Interface | Applied to | Activation |
@@ -342,6 +343,7 @@ you need — each context is opt-in:
 | `io.wiretap.applog.message.handler.MessageMaskingHandler` | `message` field in app logs | bean present + `wiretap.message-masking=true` (default) |
 | `io.wiretap.http.message.settings.body.HttpBodyMaskingHandler` | each field value in HTTP request/response bodies | bean present + `enable-body-masking=true` |
 | `io.wiretap.http.message.HttpUrlMaskingHandler` | full request URL (path + query string) | bean present + `enable-url-masking=true` |
+| `io.wiretap.http.message.HttpRequestParamsMaskingHandler` | each query parameter value in `request_params` | bean present + `enable-request-params-masking=true` (default) |
 
 When no bean is registered for a context, data passes through unchanged regardless of
 the flag value. Per-URL control via `specific-http-info-settings[].enable-body-masking`

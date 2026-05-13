@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.wiretap.http.message.HttpMessageInfo;
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
@@ -17,6 +18,8 @@ import io.wiretap.util.FieldVisibilityMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
@@ -31,6 +34,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -40,11 +44,15 @@ import java.util.function.Function;
 import static io.wiretap.http.message.HttpMessageInfo.RequestDirection.OUTGOING;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_BODY;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_HEADERS;
+import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_PARAMS;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_URL;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_BODY;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.RESPONSE_HEADERS;
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
 import org.jetbrains.annotations.Nullable;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -97,18 +105,22 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
     private final HttpAccessFieldNames httpFieldNames;
     @Nullable
     private final HttpUrlMaskingHandler urlMaskingHandler;
+    @Nullable
+    private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public WebClientLoggingFilter(
             WebClientLogMessageSettings settings,
             BodyParser bodyParser,
             HttpAccessFieldNames httpFieldNames,
-            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler,
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
     ) {
         this.settings = settings;
         this.bodyParser = bodyParser;
         this.httpFieldNames = httpFieldNames;
         this.urlMaskingHandler = urlMaskingHandler;
+        this.paramsMaskingHandler = paramsMaskingHandler;
     }
 
     @Override
@@ -262,12 +274,14 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
                     headersSupplier(specificSettings.getRequestHeaders(), request.headers().toSingleValueMap());
             Supplier<Map<String, String>> responseHeadersSupplier =
                     headersSupplier(specificSettings.getResponseHeaders(), response.headers().asHttpHeaders().toSingleValueMap());
+            Supplier<Map<String, List<String>>> requestParamsSupplier = requestParamsSupplier(request);
 
             HttpMessageInfo info = HttpMessageInfo.builder()
                     .requestDirection(OUTGOING)
                     .requestUrl(Boolean.TRUE.equals(visibility.get(REQUEST_URL)) ? maskedUrl(requestUrl) : null)
                     .httpMethod(Optional.ofNullable(request.method()).map(HttpMethod::name).orElse(null))
                     .requestHeaders(visibility.getVisible(REQUEST_HEADERS, requestHeadersSupplier))
+                    .requestParams(maskRequestParams(visibility.getVisible(REQUEST_PARAMS, requestParamsSupplier)))
                     .requestBody(getStringBody(visibility.getVisible(REQUEST_BODY, requestBodySupplier)))
                     .requestBodyLength(request.headers().getContentLength())
                     .responseHeaders(visibility.getVisible(RESPONSE_HEADERS, responseHeadersSupplier))
@@ -297,12 +311,14 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
                             request.headers().getContentType(), specificSettings.getHttpBodySettings());
             Supplier<Map<String, String>> requestHeadersSupplier =
                     headersSupplier(specificSettings.getRequestHeaders(), request.headers().toSingleValueMap());
+            Supplier<Map<String, List<String>>> requestParamsSupplier = requestParamsSupplier(request);
 
             HttpMessageInfo info = HttpMessageInfo.builder()
                     .requestDirection(OUTGOING)
                     .requestUrl(Boolean.TRUE.equals(visibility.get(REQUEST_URL)) ? maskedUrl(requestUrl) : null)
                     .httpMethod(Optional.ofNullable(request.method()).map(HttpMethod::name).orElse(null))
                     .requestHeaders(visibility.getVisible(REQUEST_HEADERS, requestHeadersSupplier))
+                    .requestParams(maskRequestParams(visibility.getVisible(REQUEST_PARAMS, requestParamsSupplier)))
                     .requestBody(getStringBody(visibility.getVisible(REQUEST_BODY, requestBodySupplier)))
                     .requestBodyLength(request.headers().getContentLength())
                     .elapsedTime(System.currentTimeMillis() - startTime)
@@ -330,6 +346,25 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
         if (url == null) return null;
         return settings.isEnableUrlMasking() && urlMaskingHandler != null
                 ? urlMaskingHandler.maskUrl(url) : url;
+    }
+
+    private Map<String, List<String>> maskRequestParams(Map<String, List<String>> params) {
+        if (params == null
+                || !settings.isEnableRequestParamsMasking()
+                || paramsMaskingHandler == null) {
+            return params;
+        }
+        return params.entrySet().stream()
+                .collect(toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().stream()
+                                .map(v -> paramsMaskingHandler.maskParamValue(e.getKey(), v))
+                                .toList()));
+    }
+
+    private Supplier<Map<String, List<String>>> requestParamsSupplier(ClientRequest request) {
+        return () -> URLEncodedUtils.parse(request.url(), StandardCharsets.UTF_8).stream()
+                .collect(groupingBy(NameValuePair::getName, mapping(NameValuePair::getValue, toList())));
     }
 
     private Supplier<Map<String, String>> headersSupplier(

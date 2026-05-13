@@ -127,7 +127,7 @@ class WebClientLoggingFilterTest {
 
         WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
         settings.setExcludeRequestPatterns(java.util.List.of(".*/actuator/.*"));
-        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null);
+        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
         WebClient client = WebClient.builder().filter(filter).build();
 
         client.get().uri(wireMock.baseUrl() + "/actuator/health").retrieve().toBodilessEntity().block();
@@ -163,7 +163,7 @@ class WebClientLoggingFilterTest {
         WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);
         settings.getVisibilitySettings().put(HttpConfigurableField.REQUEST_BODY, Boolean.FALSE);
-        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null);
+        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
         WebClient client = WebClient.builder().filter(filter).build();
 
         client.post().uri(wireMock.baseUrl() + "/orders")
@@ -190,7 +190,7 @@ class WebClientLoggingFilterTest {
         WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);
         settings.getVisibilitySettings().put(HttpConfigurableField.RESPONSE_BODY, Boolean.FALSE);
-        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null);
+        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
         WebClient client = WebClient.builder().filter(filter).build();
 
         String body = client.get().uri(wireMock.baseUrl() + "/items/2")
@@ -214,7 +214,7 @@ class WebClientLoggingFilterTest {
         WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);
         settings.getHttpBodySettings().setMaxBodyLength(100);
-        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null);
+        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
         WebClient client = WebClient.builder().filter(filter).build();
 
         String received = client.get().uri(wireMock.baseUrl() + "/big")
@@ -237,7 +237,7 @@ class WebClientLoggingFilterTest {
         WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);
         settings.getHttpBodySettings().setMaxBodyLength(100);
-        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null);
+        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
         WebClient client = WebClient.builder().filter(filter).build();
 
         client.post().uri(wireMock.baseUrl() + "/upload")
@@ -254,7 +254,7 @@ class WebClientLoggingFilterTest {
     private WebClient clientWith(HttpAccessFieldNames fieldNames) {
         WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);
-        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), fieldNames, null);
+        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), fieldNames, null, null);
         return WebClient.builder().filter(filter).build();
     }
 

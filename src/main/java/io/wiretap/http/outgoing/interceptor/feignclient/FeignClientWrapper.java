@@ -22,6 +22,7 @@ import io.wiretap.http.message.settings.AdditionalRequestHeaders;
 import io.wiretap.http.message.settings.FeignClientMessageSettings;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
@@ -57,19 +58,23 @@ public class FeignClientWrapper implements Client {
     private final HttpAccessFieldNames httpFieldNames;
     @Nullable
     private final HttpUrlMaskingHandler urlMaskingHandler;
+    @Nullable
+    private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
 
     public FeignClientWrapper(
             Client delegate,
             BodyParser bodyParser,
             FeignClientMessageSettings commonRestLogSettings,
             HttpAccessFieldNames httpFieldNames,
-            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler,
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
     ) {
         this.delegate = delegate;
         this.bodyParser = bodyParser;
         this.commonRestLogSettings = commonRestLogSettings;
         this.httpFieldNames = httpFieldNames;
         this.urlMaskingHandler = urlMaskingHandler;
+        this.paramsMaskingHandler = paramsMaskingHandler;
     }
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String HTTP_INFO_MDC_NAME = "HTTP-REQUEST-LOG";
@@ -161,7 +166,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
                         .requestUrl(Boolean.TRUE.equals(visibilityMap.get(REQUEST_URL)) ? getMaskedRequestUrl(requestUrl) : null)
                         .httpMethod(request.httpMethod().name())
                         .requestHeaders(visibilityMap.getVisible(REQUEST_HEADERS, requestHeadersSupplier))
-                        .requestParams(visibilityMap.getVisible(REQUEST_PARAMS, requestParamsSupplier))
+                        .requestParams(maskRequestParams(visibilityMap.getVisible(REQUEST_PARAMS, requestParamsSupplier)))
                         .requestBody(requestBodyString)
                         .requestBodyLength(getContentLength(request.headers()))
                         .build()
@@ -245,6 +250,20 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
     private String getMaskedRequestUrl(String notMaskedUrl) {
         return commonRestLogSettings.isEnableUrlMasking() && urlMaskingHandler != null
                 ? urlMaskingHandler.maskUrl(notMaskedUrl) : notMaskedUrl;
+    }
+
+    private Map<String, List<String>> maskRequestParams(Map<String, List<String>> params) {
+        if (params == null
+                || !commonRestLogSettings.isEnableRequestParamsMasking()
+                || paramsMaskingHandler == null) {
+            return params;
+        }
+        return params.entrySet().stream()
+                .collect(toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().stream()
+                                .map(v -> paramsMaskingHandler.maskParamValue(e.getKey(), v))
+                                .toList()));
     }
 
     /** Copies configured additional headers from MDC into the outgoing request. */

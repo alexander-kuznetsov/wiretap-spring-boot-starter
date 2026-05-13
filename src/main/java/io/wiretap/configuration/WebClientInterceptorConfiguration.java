@@ -1,5 +1,6 @@
 package io.wiretap.configuration;
 
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.WebClientLogMessageSettings;
@@ -32,9 +33,10 @@ public class WebClientInterceptorConfiguration {
             WebClientLogMessageSettings settings,
             BodyParser bodyParser,
             HttpAccessFieldNames httpFieldNames,
-            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler
+            @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler,
+            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler
     ) {
-        return new WebClientLoggingFilter(settings, bodyParser, httpFieldNames, urlMaskingHandler);
+        return new WebClientLoggingFilter(settings, bodyParser, httpFieldNames, urlMaskingHandler, paramsMaskingHandler);
     }
 
     @ConditionalOnProperty(name = "wiretap.web-client-interceptor.enabled", havingValue = "true", matchIfMissing = true)

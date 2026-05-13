@@ -19,6 +19,9 @@ public class HttpInfoLogMessageSettings {
     /** Toggles masking applied to the logged request URL. */
     private boolean enableUrlMasking = true;
 
+    /** Toggles masking applied to logged request query parameter values. */
+    private boolean enableRequestParamsMasking = true;
+
     /** Request headers logged by default. */
     private Collection<String> requestHeaders = Arrays.asList("Content-Type", "X-Forwarded-For");
 

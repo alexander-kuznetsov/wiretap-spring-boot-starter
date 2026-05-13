@@ -50,6 +50,7 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
 import static io.wiretap.util.HttpBodyUtils.getXmlRequestType;
 import static io.wiretap.util.HttpBodyUtils.isXmlBody;
+import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import org.jetbrains.annotations.Nullable;
 
@@ -67,6 +68,8 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
     private final HttpAccessFieldNames httpFieldNames;
     @Nullable
     private final HttpUrlMaskingHandler urlMaskingHandler;
+    @Nullable
+    private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public RestLoggingInterceptor(
@@ -74,13 +77,15 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
             final BodyParser bodyParser,
             String clientName,
             final HttpAccessFieldNames httpFieldNames,
-            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler,
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
     ) {
         this.commonRestLogSettings = logMessageSettings;
         this.bodyParser = bodyParser;
         this.clientName = clientName;
         this.httpFieldNames = httpFieldNames;
         this.urlMaskingHandler = urlMaskingHandler;
+        this.paramsMaskingHandler = paramsMaskingHandler;
     }
 
 
@@ -170,7 +175,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
                         .requestUrl(Boolean.TRUE.equals(visibilityMap.get(REQUEST_URL)) ? getMaskedRequestUrl(requestUrl) : null)
                         .httpMethod(Optional.ofNullable(httpRequest.getMethod()).map(HttpMethod::name).orElse(null))
                         .requestHeaders(visibilityMap.getVisible(REQUEST_HEADERS, requestHeadersSupplier))
-                        .requestParams(visibilityMap.getVisible(REQUEST_PARAMS, requestParamsSupplier))
+                        .requestParams(maskRequestParams(visibilityMap.getVisible(REQUEST_PARAMS, requestParamsSupplier)))
                         .requestBody(requestBodyString)
                         .requestBodyLength(httpRequest.getHeaders().getContentLength())
                         .xmlBodyType(getXmlType(originIncomingRequestBodyString, isXmlRequestBody))
@@ -231,6 +236,20 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
     private String getMaskedRequestUrl(String notMaskedUrl) {
         return commonRestLogSettings.isEnableUrlMasking() && urlMaskingHandler != null
                 ? urlMaskingHandler.maskUrl(notMaskedUrl) : notMaskedUrl;
+    }
+
+    private Map<String, List<String>> maskRequestParams(Map<String, List<String>> params) {
+        if (params == null
+                || !commonRestLogSettings.isEnableRequestParamsMasking()
+                || paramsMaskingHandler == null) {
+            return params;
+        }
+        return params.entrySet().stream()
+                .collect(toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().stream()
+                                .map(v -> paramsMaskingHandler.maskParamValue(e.getKey(), v))
+                                .toList()));
     }
 
     private String getXmlType(String requestContent, boolean isXmlBody) {
