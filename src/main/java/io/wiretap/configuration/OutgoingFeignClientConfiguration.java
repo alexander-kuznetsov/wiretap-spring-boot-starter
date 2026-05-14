@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(FeignClientMessageSettings.class)
 public class OutgoingFeignClientConfiguration {
 
-    @ConditionalOnProperty(name = "wiretap.feign-interceptor.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "wiretap.feign-client-interceptor.enabled", havingValue = "true", matchIfMissing = true)
     @Bean
     public Client loggingFeignClient(
             BodyParser bodyParser, FeignClientMessageSettings settings, HttpAccessFieldNames httpFieldNames,

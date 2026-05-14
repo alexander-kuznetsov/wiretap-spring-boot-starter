@@ -502,7 +502,7 @@
       "defaultValue": false
     },
     {
-      "name": "wiretap.feign-interceptor.enabled",
+      "name": "wiretap.feign-client-interceptor.enabled",
       "type": "java.lang.Boolean",
       "description": "Toggle registration of the Feign logging interceptor",
       "defaultValue": true

@@ -79,7 +79,7 @@ assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
     @Test
     void feignInterceptorCanBeDisabled() {
         runner
-                .withPropertyValues("wiretap.feign-interceptor.enabled=false")
+                .withPropertyValues("wiretap.feign-client-interceptor.enabled=false")
                 .run(ctx -> assertThat(ctx).doesNotHaveBean(FeignClientWrapper.class));
     }
 
