@@ -5,16 +5,20 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Logback-instantiated wrapper that delegates to {@link WiretapStandardLogFieldsProvider}
- * once the Spring context has initialised it.
- * <p>
- * Logback reads the XML config and instantiates this class before Spring starts,
- * so the real (Spring-managed) provider is wired in later via the static setter.
- * Until then, {@link #writeTo} is a no-op.
+ * once the Spring context has initialised it. Until then, writes a minimal fallback
+ * (timestamp, level, logger, thread, message) using default field names so that
+ * pre-Spring log events still produce a usable JSON record instead of an empty {@code {}}.
  */
 public class LazyStandardLogFieldsProvider extends AbstractFieldJsonProvider<ILoggingEvent> {
+
+    private static final DateTimeFormatter TS_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     private static volatile WiretapStandardLogFieldsProvider provider;
 
@@ -28,6 +32,20 @@ public class LazyStandardLogFieldsProvider extends AbstractFieldJsonProvider<ILo
         WiretapStandardLogFieldsProvider p = provider;
         if (p != null) {
             p.writeTo(generator, event);
+            return;
+        }
+        writeFallback(generator, event);
+    }
+
+    private static void writeFallback(JsonGenerator gen, ILoggingEvent event) throws IOException {
+        gen.writeStringField("@timestamp",
+                Instant.ofEpochMilli(event.getTimeStamp()).atOffset(ZoneOffset.UTC).format(TS_FORMAT));
+        gen.writeStringField("level", event.getLevel().toString());
+        gen.writeStringField("thread_name", event.getThreadName());
+        gen.writeStringField("logger", event.getLoggerName());
+        String msg = event.getFormattedMessage();
+        if (msg != null) {
+            gen.writeStringField("message", msg);
         }
     }
 }

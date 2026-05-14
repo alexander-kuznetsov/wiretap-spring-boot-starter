@@ -502,9 +502,27 @@
       "defaultValue": false
     },
     {
-      "name": "wiretap.feign-client-interceptor.enabled",
-      "type": "java.util.Boolean",
-      "description": "Toggle registration of the default RestTemplateBuilder logging interceptor",
+      "name": "wiretap.feign-interceptor.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle registration of the Feign logging interceptor",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-client-interceptor.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle registration of the RestClientBuilder logging interceptor customizer",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-client-interceptor.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle registration of the WebClient.Builder logging filter customizer",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.message-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of the application log `message` field via MessageMaskingHandler beans",
       "defaultValue": true
     },
     {

@@ -20,12 +20,16 @@ public class LazyIncomingRequestLogFilter extends Filter<IAccessEvent> {
 
     @Override
     public FilterReply decide(IAccessEvent iAccessEvent) {
+        final String requestURL = iAccessEvent.getRequestURL();
+        if (requestURL == null || requestURL.isEmpty() || "-".equals(requestURL)) {
+            return FilterReply.DENY;
+        }
+
         RestControllerLogMessageSettings settings = httpInfoLogMessageSettings;
         if (settings == null) {
             return FilterReply.NEUTRAL;
         }
 
-        final String requestURL = iAccessEvent.getRequestURL();
         final boolean shouldSkip = settings.getExcludeRequestPatterns().stream()
                 .anyMatch(requestURL::matches);
 
