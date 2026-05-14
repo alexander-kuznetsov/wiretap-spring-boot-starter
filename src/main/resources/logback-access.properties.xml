@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <property resource="application.properties"/>
+    <property resource="application.yml"/>
+    <springProperty scope="context" name="isPrettyLog" source="wiretap.pretty-print" defaultValue="false"/>
+    <springProperty scope="context" name="defaultLog" source="wiretap.default-log" defaultValue="false"/>
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name"/>
+    <springProperty scope="context" name="ACTIVE_PROFILE" source="spring.profiles.active"/>
+    <!-- always a good activate OnConsoleStatusListener -->
+    <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener"/>
+    <springProperty scope="context" name="isLoggingFile" source="wiretap.file-logging-enabled" defaultValue="false"/>
+    <springProperty scope="context" name="loggingPath" source="wiretap.file-logging-path" defaultValue="/var/log/wiretap"/>
+</included>

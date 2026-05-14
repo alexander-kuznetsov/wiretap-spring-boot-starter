@@ -1,0 +1,752 @@
+{
+  "properties": [
+    {
+      "name": "wiretap.default-log",
+      "type": "java.lang.Boolean",
+      "description": "Toggle the default Spring Boot application log layout (instead of the structured JSON one)",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.pretty-print",
+      "type": "java.lang.Boolean",
+      "description": "Toggle pretty-printed JSON log output",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.file-logging.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle writing logs to a file",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.file-logging.path",
+      "type": "java.lang.String",
+      "description": "Root directory where log files are written",
+      "defaultValue": "/var/log/wiretap"
+    },
+    {
+      "name": "wiretap.stacktrace.max-depth",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged stack-trace depth",
+      "defaultValue": "50"
+    },
+    {
+      "name": "wiretap.stacktrace.max-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged stack-trace length (characters)",
+      "defaultValue": "15000"
+    },
+    {
+      "name": "wiretap.rest-controllers.http-body-settings",
+      "type": "java.lang.String",
+      "description": "Body logging settings"
+    },
+    {
+      "name": "wiretap.rest-controllers.extra-info-field-name",
+      "type": "io.wiretap.http.message.settings.body.HttpBodySettings",
+      "description": "Top-level field name in the log object that holds the user-supplied extra request info",
+      "defaultValue": "operation_info"
+    },
+    {
+      "name": "wiretap.rest-controllers.http-body-settings.enable-body-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Toggle truncation of long string fields in inbound/outbound JSON bodies",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.enable-url-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle URL masking on logged requests",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.http-body-settings.max-field-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum string length for fields inside inbound/outbound JSON bodies",
+      "defaultValue": 1000
+    },
+    {
+      "name": "wiretap.rest-controllers.http-body-settings.max-body-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged length of inbound/outbound message bodies",
+      "defaultValue": 10000
+    },
+    {
+      "name": "wiretap.rest-controllers.http-body-settings.enable-body-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of request/response bodies",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-controllers.exclude-request-patterns",
+      "type": "java.util.Collection",
+      "description": "URL regex patterns to skip from logging for inbound requests"
+    },
+    {
+      "name": "wiretap.rest-controllers.request-headers",
+      "type": "java.util.Collection",
+      "description": "Request headers to log"
+    },
+    {
+      "name": "wiretap.rest-controllers.response-headers",
+      "type": "java.util.Collection",
+      "description": "Response headers to log"
+    },
+    {
+      "name": "wiretap.rest-controllers.visibility-settings",
+      "type": "java.util.EnumMap",
+      "description": "Application-wide configuration for the RestTemplate logging interceptor"
+    },
+    {
+      "name": "wiretap.rest-controllers.visibility-settings.REQUEST_URL",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request URL",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.visibility-settings.REQUEST_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude request headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-controllers.visibility-settings.REQUEST_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.visibility-settings.REQUEST_PARAMS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude HTTP request parameters",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.visibility-settings.RESPONSE_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude response headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-controllers.visibility-settings.RESPONSE_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the response body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings",
+      "type": "java.util.List<io.wiretap.http.message.settings.SpecificHttpInfoLogMessageSettings>",
+      "description": "Per-URL setting overrides"
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.match-url-pattern",
+      "type": "java.lang.String",
+      "description": "URL regex pattern"
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.http-body-settings",
+      "type": "io.wiretap.http.message.settings.body.HttpBodySettings",
+      "description": "Body logging settings"
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.http-body-settings.enable-body-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Toggle truncation of long string fields in inbound/outbound JSON bodies",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.enable-url-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle URL masking on logged requests",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.http-body-settings.max-field-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum string length for fields inside inbound/outbound JSON bodies",
+      "defaultValue": 1000
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.http-body-settings.max-body-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged length of inbound/outbound message bodies",
+      "defaultValue": 10000
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.http-body-settings.enable-body-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of request/response bodies",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.request-headers",
+      "type": "java.util.Collection",
+      "description": "Request headers to log"
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.response-headers",
+      "type": "java.util.Collection",
+      "description": "Response headers to log"
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.visibility-settings",
+      "type": "java.util.EnumMap",
+      "description": "Application-wide configuration for the RestTemplate logging interceptor"
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.visibility-settings.REQUEST_URL",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request URL",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.visibility-settings.REQUEST_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude request headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.visibility-settings.REQUEST_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.visibility-settings.REQUEST_PARAMS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude HTTP request parameters",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.visibility-settings.RESPONSE_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude response headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.visibility-settings.RESPONSE_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the response body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-controllers.specific-http-info-settings.specific-http-info-settings",
+      "type": "java.util.List<io.wiretap.http.message.settings.SpecificHttpInfoLogMessageSettings>",
+      "description": "Per-URL setting overrides"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.exclude-request-patterns",
+      "type": "java.util.Collection",
+      "description": "URL regex patterns to skip from logging for outbound requests"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.enable-url-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle URL masking for logged RestTemplate requests",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.http-body-settings",
+      "type": "io.wiretap.http.message.settings.body.HttpBodySettings",
+      "description": "Body logging settings"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.http-body-settings.enable-body-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Toggle truncation of long string fields in inbound/outbound JSON bodies",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.http-body-settings.max-field-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum string length for fields inside inbound/outbound JSON bodies",
+      "defaultValue": 1000
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.http-body-settings.max-body-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged length of inbound/outbound message bodies",
+      "defaultValue": 10000
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.http-body-settings.enable-body-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of request/response bodies",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.enabled",
+      "type": "java.util.Boolean",
+      "description": "Toggle registration of the default RestTemplateBuilder logging interceptor",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.request-headers",
+      "type": "java.util.Collection",
+      "description": "Request headers to log"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.response-headers",
+      "type": "java.util.Collection",
+      "description": "Response headers to log"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.visibility-settings",
+      "type": "java.util.EnumMap",
+      "description": "Application-wide configuration for the RestTemplate logging interceptor"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.visibility-settings.REQUEST_URL",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request URL",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.visibility-settings.REQUEST_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude request headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.visibility-settings.REQUEST_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.visibility-settings.REQUEST_PARAMS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude HTTP request parameters",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.visibility-settings.RESPONSE_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude response headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.visibility-settings.RESPONSE_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the response body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.additional-request-headers",
+      "type": "java.util.List<AdditionalRequestHeaders>",
+      "description": "Map of URL patterns to extra headers that should be added to the RestTemplate request"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings",
+      "type": "java.util.List<io.wiretap.http.message.settings.SpecificHttpInfoLogMessageSettings>",
+      "description": "Per-URL setting overrides"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.match-url-pattern",
+      "type": "java.lang.String",
+      "description": "URL regex pattern"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.enable-url-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle URL masking for logged RestTemplate requests",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.http-body-settings",
+      "type": "io.wiretap.http.message.settings.body.HttpBodySettings",
+      "description": "Body logging settings"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.http-body-settings.enable-body-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Toggle truncation of long string fields in inbound/outbound JSON bodies",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.http-body-settings.max-field-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum string length for fields inside inbound/outbound JSON bodies",
+      "defaultValue": 1000
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.http-body-settings.max-body-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged length of inbound/outbound message bodies",
+      "defaultValue": 10000
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.http-body-settings.enable-body-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of request/response bodies",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.request-headers",
+      "type": "java.util.Collection",
+      "description": "Request headers to log"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.response-headers",
+      "type": "java.util.Collection",
+      "description": "Response headers to log"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.visibility-settings",
+      "type": "java.util.EnumMap",
+      "description": "Application-wide configuration for the RestTemplate logging interceptor"
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_URL",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request URL",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude request headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_PARAMS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude HTTP request parameters",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.visibility-settings.RESPONSE_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude response headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.visibility-settings.RESPONSE_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the response body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.rest-template-interceptor.specific-http-info-settings.additional-request-headers",
+      "type": "java.util.List<AdditionalRequestHeaders>",
+      "description": "Map of URL patterns to extra headers that should be added to the RestTemplate request"
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.exclude-request-patterns",
+      "type": "java.util.Collection",
+      "description": "URL regex patterns to skip from logging for outbound requests"
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.enable-url-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle URL masking for logged RestTemplate requests",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.http-body-settings",
+      "type": "io.wiretap.http.message.settings.body.HttpBodySettings",
+      "description": "Body logging settings"
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.http-body-settings.enable-body-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Toggle truncation of long string fields in inbound/outbound JSON bodies",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.http-body-settings.max-field-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum string length for fields inside inbound/outbound JSON bodies",
+      "defaultValue": 1000
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.http-body-settings.max-body-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged length of inbound/outbound message bodies",
+      "defaultValue": 10000
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.http-body-settings.enable-body-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of request/response bodies",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.enabled",
+      "type": "java.util.Boolean",
+      "description": "Toggle registration of the default RestTemplateBuilder logging interceptor",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.request-headers",
+      "type": "java.util.Collection",
+      "description": "Request headers to log"
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.response-headers",
+      "type": "java.util.Collection",
+      "description": "Response headers to log"
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.visibility-settings",
+      "type": "java.util.EnumMap",
+      "description": "Application-wide configuration for the RestTemplate logging interceptor"
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.visibility-settings.REQUEST_URL",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request URL",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.visibility-settings.REQUEST_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude request headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.visibility-settings.REQUEST_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.visibility-settings.REQUEST_PARAMS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude HTTP request parameters",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.visibility-settings.RESPONSE_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude response headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.visibility-settings.RESPONSE_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the response body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.specific-http-info-settings",
+      "type": "java.util.List<io.wiretap.http.message.settings.SpecificHttpInfoLogMessageSettings>",
+      "description": "Per-URL setting overrides"
+    },
+    {
+      "name": "wiretap.feign-client-interceptor.additional-request-headers",
+      "type": "java.util.List<AdditionalRequestHeaders>",
+      "description": "Map of URL patterns to extra headers that should be added to the RestTemplate request"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.enable-url-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle URL masking for logged SOAP requests",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.http-body-settings",
+      "type": "io.wiretap.http.message.settings.body.HttpBodySettings",
+      "description": "Body logging settings"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.http-body-settings.enable-body-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Toggle truncation of long string fields in inbound/outbound JSON bodies",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.http-body-settings.max-field-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum string length for fields inside inbound/outbound JSON bodies",
+      "defaultValue": 1000
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.http-body-settings.max-body-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged length of inbound/outbound message bodies",
+      "defaultValue": 10000
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.http-body-settings.enable-body-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of request/response bodies",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.exclude-request-patterns",
+      "type": "java.util.Collection",
+      "description": "URL regex patterns to skip from logging for inbound requests"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.request-headers",
+      "type": "java.util.Collection",
+      "description": "Request headers to log"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.response-headers",
+      "type": "java.util.Collection",
+      "description": "Response headers to log"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.visibility-settings",
+      "type": "java.util.EnumMap",
+      "description": "Application-wide configuration for the RestTemplate logging interceptor"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.visibility-settings.REQUEST_URL",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request URL",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.visibility-settings.REQUEST_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude request headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.visibility-settings.REQUEST_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.visibility-settings.REQUEST_PARAMS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude HTTP request parameters",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.visibility-settings.RESPONSE_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude response headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.visibility-settings.RESPONSE_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the response body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings",
+      "type": "java.util.List<io.wiretap.http.message.settings.SpecificHttpInfoLogMessageSettings>",
+      "description": "Per-URL setting overrides"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.match-url-pattern",
+      "type": "java.lang.String",
+      "description": "URL regex pattern"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.enable-url-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle URL masking for logged SOAP requests",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.http-body-settings",
+      "type": "io.wiretap.http.message.settings.body.HttpBodySettings",
+      "description": "Body logging settings"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.http-body-settings.enable-body-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Toggle truncation of long string fields in inbound/outbound JSON bodies",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.http-body-settings.max-field-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum string length for fields inside inbound/outbound JSON bodies",
+      "defaultValue": 1000
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.http-body-settings.max-body-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged length of inbound/outbound message bodies",
+      "defaultValue": 10000
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.http-body-settings.enable-body-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of request/response bodies",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.request-headers",
+      "type": "java.util.Collection",
+      "description": "Request headers to log"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.response-headers",
+      "type": "java.util.Collection",
+      "description": "Response headers to log"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.visibility-settings",
+      "type": "java.util.EnumMap",
+      "description": "Application-wide configuration for the RestTemplate logging interceptor"
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_URL",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request URL",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude request headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the request body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.visibility-settings.REQUEST_PARAMS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude HTTP request parameters",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.visibility-settings.RESPONSE_HEADERS",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude response headers",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.web-service-template-interceptor.specific-http-info-settings.visibility-settings.RESPONSE_BODY",
+      "type": "java.lang.Boolean",
+      "description": "Include or exclude the response body",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.tracing.propagation.type.b3.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable the legacy 64-bit B3 trace-id format",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.finedog.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle processing of finedog-related annotations",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.finedog.mapping",
+      "type": "java.util.Map",
+      "description": "Mapping of aliases used in FinedogExternalDependency annotations to the real finedog unit ID"
+    }
+  ]
+}

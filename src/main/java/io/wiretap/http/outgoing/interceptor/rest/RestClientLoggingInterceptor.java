@@ -1,0 +1,18 @@
+package io.wiretap.http.outgoing.interceptor.rest;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import io.wiretap.http.message.settings.RestClientLogMessageSettings;
+import io.wiretap.http.message.settings.body.BodyParser;
+
+/**
+ * Logging interceptor for outbound traffic issued via RestClient.
+ */
+@Component
+public class RestClientLoggingInterceptor extends RestLoggingInterceptor {
+
+    @Autowired
+    public RestClientLoggingInterceptor(RestClientLogMessageSettings logMessageSettings, BodyParser bodyParser) {
+        super(logMessageSettings, bodyParser, "RestClient");
+    }
+}

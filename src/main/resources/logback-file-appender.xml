@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <include optional="false" resource="logback-properties.xml"/>
+
+    <if condition='property("isLoggingFile").equals("true")'>
+        <then>
+            <appender name="FILE-ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                <file>${loggingPath}/${APP_NAME}_json.log</file>
+                <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                    <fileNamePattern>${loggingPath}/archive/${APP_NAME}_json_%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+                    <maxHistory>3</maxHistory>
+                    <maxFileSize>100MB</maxFileSize>
+                    <totalSizeCap>10GB</totalSizeCap>
+                </rollingPolicy>
+                <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                    <if condition='property("isPrettyLog").equals("true")'>
+                        <then>
+                            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+                        </then>
+                    </if>
+                    <providers>
+                        <pattern>
+                            <omitEmptyFields>true</omitEmptyFields>
+                            <pattern>
+                                {
+                                "@timestamp": "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}",
+                                "env":"${ACTIVE_PROFILE}",
+                                "system":"${APP_NAME}",
+                                "inst":"${HOSTNAME}",
+                                "lb_trace_id": "%mdc{lb-trace-id}",
+                                "session_key": "%mdc{session-key}",
+                                "trace_id": "%X{traceId:-}",
+                                "span_id": "%X{spanId:-}",
+                                "parent_id": "%X{parentId:-}",
+                                "level": "%level",
+                                "class": "%class",
+                                "method": "%method",
+                                "line": "%line",
+                                "file": "%file",
+                                "thread_name": "%thread",
+                                "message": "%maskedMsg",
+                                "http_info": "#asJson{%mdc{HTTP-REQUEST-LOG}}",
+                                "db_query_info": "#asJson{%mdc{DB-QUERY-INFO}}",
+                                "extra": "#asJson{%mdc{LOG_EXTRA}}"
+                                }
+                            </pattern>
+                        </pattern>
+                        <stackTrace>
+                            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                                <maxDepthPerThrowable>${stackTraceMaxDepth}</maxDepthPerThrowable>
+                                <maxLength>${stackTraceMaxLength}</maxLength>
+                                <rootCauseFirst>true</rootCauseFirst>
+                            </throwableConverter>
+                        </stackTrace>
+                    </providers>
+                </encoder>
+                <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+                    <evaluator>
+                        <expression>logger.equals("brave.Tracer")</expression>
+                    </evaluator>
+                    <OnMismatch>NEUTRAL</OnMismatch>
+                    <OnMatch>DENY</OnMatch>
+                </filter>
+            </appender>
+
+            <root level="INFO">
+                <appender-ref ref="FILE-ROLLING"/>
+            </root>
+        </then>
+    </if>
+</included>

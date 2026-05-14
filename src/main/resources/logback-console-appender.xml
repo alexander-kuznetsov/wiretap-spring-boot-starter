@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <include optional="false" resource="logback-properties.xml"/>
+    <!-- Configuration for writing JSON logs to stdout -->
+    <if condition='property("defaultLog").equals("true")'>
+        <then>
+            <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+            <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+                <layout class="ch.qos.logback.classic.PatternLayout">
+                    <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+                </layout>
+            </appender>
+        </then>
+        <else>
+            <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+                <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                    <if condition='property("isPrettyLog").equals("true")'>
+                        <then>
+                            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+                        </then>
+                    </if>
+                    <providers>
+                        <pattern>
+                            <omitEmptyFields>true</omitEmptyFields>
+                            <pattern>
+                                {
+                                "@timestamp": "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}",
+                                "env":"${ACTIVE_PROFILE}",
+                                "system":"${APP_NAME}",
+                                "inst":"${HOSTNAME}",
+                                "lb_trace_id": "%mdc{lb-trace-id}",
+                                "session_key": "%mdc{session-key}",
+                                "trace_id": "%X{traceId:-}",
+                                "span_id": "%X{spanId:-}",
+                                "parent_id": "%X{parentId:-}",
+                                "level": "%level",
+                                "class": "%class",
+                                "method": "%method",
+                                "line": "%line",
+                                "file": "%file",
+                                "thread_name": "%thread",
+                                "message": "%maskedMsg",
+                                "http_info": "#asJson{%mdc{HTTP-REQUEST-LOG}}",
+                                "db_query_info": "#asJson{%mdc{DB-QUERY-INFO}}",
+                                "extra": "#asJson{%mdc{LOG_EXTRA}}"
+                                }
+                            </pattern>
+                        </pattern>
+                        <stackTrace>
+                            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                                <maxDepthPerThrowable>${stackTraceMaxDepth}</maxDepthPerThrowable>
+                                <maxLength>${stackTraceMaxLength}</maxLength>
+                                <rootCauseFirst>true</rootCauseFirst>
+                            </throwableConverter>
+                        </stackTrace>
+                    </providers>
+                </encoder>
+                <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+                    <evaluator>
+                        <expression>logger.equals("brave.Tracer")</expression>
+                    </evaluator>
+                    <OnMismatch>NEUTRAL</OnMismatch>
+                    <OnMatch>DENY</OnMatch>
+                </filter>
+            </appender>
+        </else>
+    </if>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</included>

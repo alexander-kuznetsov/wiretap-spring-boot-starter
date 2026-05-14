@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <include optional="false" resource="logback-access-properties.xml"/>
+
+    <if condition='property("isLoggingFile").equals("true")'>
+        <then>
+            <appender name="HTTP_FILE-ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                <filter class="io.wiretap.http.incoming.filter.LazyIncomingRequestLogFilter"/>
+                <file>${loggingPath}/${APP_NAME}_access_json.log</file>
+                <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                    <fileNamePattern>${loggingPath}/archive/${APP_NAME}_access_json_%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+                    <maxHistory>3</maxHistory>
+                    <maxFileSize>100MB</maxFileSize>
+                    <totalSizeCap>10GB</totalSizeCap>
+                </rollingPolicy>
+                <encoder class="io.wiretap.http.incoming.encoder.LazyJsonAccessEncoder">
+                    <if condition='property("isPrettyLog").equals("true")'>
+                        <then>
+                            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+                        </then>
+                    </if>
+                    <providers>
+                        <pattern>
+                            <omitEmptyFields>true</omitEmptyFields>
+                            <pattern>
+                                {
+                                "@timestamp": "%t{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}",
+                                "env":"${ACTIVE_PROFILE}",
+                                "system":"${APP_NAME}",
+                                "inst":"${HOSTNAME}",
+                                "lb_trace_id": "#nullNA{%i{lb-trace-id}}"
+                                }
+                            </pattern>
+                        </pattern>
+                        <provider class="io.wiretap.http.incoming.provider.trace.TraceIdProvider"/>
+                        <provider class="io.wiretap.http.incoming.provider.trace.SpanIdProvider"/>
+                        <provider class="io.wiretap.http.incoming.provider.trace.SessionKeyProvider"/>
+                        <pattern>
+                            <omitEmptyFields>true</omitEmptyFields>
+                            <pattern>
+                                {
+                                "level": "INFO"
+                                }
+                            </pattern>
+                        </pattern>
+                        <provider class="io.wiretap.http.incoming.provider.message.LazyMessageProvider"/>
+                        <provider class="io.wiretap.http.incoming.provider.httpinfo.LazyHttpInfoMessageProvider"/>
+                        <provider class="io.wiretap.http.incoming.provider.operationinfo.LazyExtraRequestInfoProvider"/>
+                    </providers>
+                </encoder>
+            </appender>
+
+            <if condition='property("defaultLog").equals("false")'>
+                <then>
+                    <appender-ref ref="HTTP_FILE-ROLLING"/>
+                </then>
+            </if>
+        </then>
+    </if>
+</included>

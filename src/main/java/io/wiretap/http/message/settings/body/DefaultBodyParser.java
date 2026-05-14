@@ -1,0 +1,150 @@
+package io.wiretap.http.message.settings.body;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.TextNode;
+import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.function.TriFunction;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpResponse;
+import io.wiretap.util.HttpBodyUtils;
+import io.wiretap.util.MaskUtil;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+import java.util.function.BinaryOperator;
+
+import static org.springframework.util.FileCopyUtils.copyToByteArray;
+import static io.wiretap.util.HttpBodyUtils.isSupportedContentType;
+
+@NoArgsConstructor
+public class DefaultBodyParser implements BodyParser {
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final String NOT_SUPPORTED_TYPE = "Logging of content type %s is not supported";
+    private static final String LIMIT_EXCEEDED = "body exceeds the configured limit of %d characters";
+
+
+    @Override
+    public final JsonNode parseRequestBody(final String body, final String requestUrl, final MediaType contentType, HttpBodySettings settings) {
+        return parseBody(body, requestUrl, contentType, this::beforeParseRequestBody, this::afterParseRequestBody, settings);
+    }
+
+    @Override
+    public final JsonNode parseResponseBody(final String body, final String requestUrl, final MediaType contentType, HttpBodySettings settings) {
+        return parseBody(body, requestUrl, contentType, this::beforeParseResponseBody, this::afterParseResponseBody, settings);
+    }
+
+    @Override
+    public JsonNode parseResponseBody(ClientHttpResponse bufferingResponse, String requestUrl, MediaType contentType, HttpBodySettings settings) throws IOException {
+        return parseBody(bufferingResponse, requestUrl, contentType, this::beforeParseResponseBody, this::afterParseResponseBody, settings);
+    }
+
+
+    private JsonNode parseBody(
+            final ClientHttpResponse bufferingResponse,
+            final String requestUrl,
+            final MediaType contentType,
+            final BinaryOperator<String> beforeParsingCallBack,
+            final TriFunction<JsonNode, String, HttpBodySettings, JsonNode> afterParsingCallBack,
+            final HttpBodySettings bodySettings
+    ) throws IOException {
+        if (!isSupportedContentType(contentType)) {
+            return new TextNode(String.format(NOT_SUPPORTED_TYPE, contentType));
+        }
+
+        final String body = new String(
+                copyToByteArray(bufferingResponse.getBody()),
+                StandardCharsets.UTF_8
+        );
+
+        final JsonNode processedBody = afterParsingCallBack.apply(
+                this.processBodyString(beforeParsingCallBack.apply(body, requestUrl), contentType, bodySettings),
+                requestUrl,
+                bodySettings
+        );
+
+        if (processedBody != null &&
+                processedBody.toString().length() > bodySettings.getMaxBodyLength()) {
+            return new TextNode(String.format(LIMIT_EXCEEDED, bodySettings.getMaxBodyLength()));
+        }
+
+        return processedBody;
+    }
+    private JsonNode parseBody(
+            final String body,
+            final String requestUrl,
+            final MediaType contentType,
+            final BinaryOperator<String> beforeParsingCallBack,
+            final TriFunction<JsonNode, String, HttpBodySettings, JsonNode> afterParsingCallBack,
+            final HttpBodySettings httpBodySettings
+    ) {
+        if (!isSupportedContentType(contentType)) {
+            return new TextNode(String.format(NOT_SUPPORTED_TYPE, contentType));
+        }
+
+        final JsonNode processedBody = afterParsingCallBack.apply(
+                this.processBodyString(beforeParsingCallBack.apply(body, requestUrl), contentType, httpBodySettings),
+                requestUrl,
+                httpBodySettings
+        );
+
+        if (processedBody != null &&
+                processedBody.toString().length() > httpBodySettings.getMaxBodyLength()) {
+            return new TextNode(String.format(LIMIT_EXCEEDED, httpBodySettings.getMaxBodyLength()));
+        }
+
+        return processedBody;
+    }
+    private JsonNode processBodyString(final String bodyString, final MediaType contentType, final HttpBodySettings httpBodySettings) {
+        if (bodyString == null || bodyString.isEmpty()) {
+            return null;
+        }
+        final boolean isTruncated = httpBodySettings.isEnableBodyTruncating();
+        if (MediaType.APPLICATION_JSON.isCompatibleWith(contentType)) {
+            return tryJson(bodyString)
+                    .map(jsonNode -> isTruncated ?
+                            HttpBodyUtils.truncateAllHugeFieldsInJson(jsonNode, httpBodySettings.getMaxFieldLength()) : jsonNode
+                    ).orElse(new TextNode(bodyString));
+        } else {
+            return new TextNode(bodyString);
+        }
+    }
+
+    private Optional<JsonNode> tryJson(final String bodyString) {
+        try {
+            return Optional.of(objectMapper.readTree(bodyString));
+
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
+    protected String beforeParseRequestBody(final String body, final String requestUrl) {
+        return body;
+    }
+
+    protected String beforeParseResponseBody(final String body, final String requestUrl) {
+        return body;
+    }
+
+    /**
+     * Post-processing hook for inbound request bodies. By the time it runs the body
+     * has already been parsed and (optionally) truncated, which makes this the
+     * right place to apply masking for performance reasons.
+     */
+    protected JsonNode afterParseRequestBody(final JsonNode body, final String requestUrl, HttpBodySettings settings) {
+        return settings.isEnableBodyMasking() ?
+                HttpBodyUtils.maskFieldsInBody(body, MaskUtil::maskLog) : body;
+    }
+
+    /**
+     * Post-processing hook for outbound response bodies. By the time it runs the body
+     * has already been parsed and (optionally) truncated, which makes this the
+     * right place to apply masking for performance reasons.
+     */
+    protected JsonNode afterParseResponseBody(final JsonNode body, final String requestUrl, HttpBodySettings settings) {
+        return settings.isEnableBodyMasking() ?
+                HttpBodyUtils.maskFieldsInBody(body, MaskUtil::maskLog) : body;
+    }
+}

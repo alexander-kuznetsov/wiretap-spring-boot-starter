@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <include optional="false" resource="logback-access-properties.xml"/>
+    <appender name="HTTP_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="io.wiretap.http.incoming.filter.LazyIncomingRequestLogFilter"/>
+        <encoder class="io.wiretap.http.incoming.encoder.LazyJsonAccessEncoder">
+            <if condition='property("isPrettyLog").equals("true")'>
+                <then>
+                    <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+                </then>
+            </if>
+
+            <providers>
+                <pattern>
+                    <omitEmptyFields>true</omitEmptyFields>
+                    <pattern>
+                        {
+                        "@timestamp": "%t{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}",
+                        "env":"${ACTIVE_PROFILE}",
+                        "system":"${APP_NAME}",
+                        "inst":"${HOSTNAME}",
+                        "lb_trace_id": "#nullNA{%i{lb-trace-id}}"
+                        }
+                    </pattern>
+                </pattern>
+                <provider class="io.wiretap.http.incoming.provider.trace.TraceIdProvider"/>
+                <provider class="io.wiretap.http.incoming.provider.trace.SpanIdProvider"/>
+                <provider class="io.wiretap.http.incoming.provider.trace.SessionKeyProvider"/>
+                <pattern>
+                    <omitEmptyFields>true</omitEmptyFields>
+                    <pattern>
+                        {
+                        "level": "INFO"
+                        }
+                    </pattern>
+                </pattern>
+                <provider class="io.wiretap.http.incoming.provider.message.LazyMessageProvider"/>
+                <provider class="io.wiretap.http.incoming.provider.httpinfo.LazyHttpInfoMessageProvider"/>
+                <provider class="io.wiretap.http.incoming.provider.operationinfo.LazyExtraRequestInfoProvider"/>
+            </providers>
+        </encoder>
+    </appender>
+
+    <if condition='property("defaultLog").equals("false")'>
+        <then>
+            <appender-ref ref="HTTP_CONSOLE"/>
+        </then>
+    </if>
+</included>

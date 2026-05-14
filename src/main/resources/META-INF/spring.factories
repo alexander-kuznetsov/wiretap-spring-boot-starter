@@ -1,0 +1,3 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+io.wiretap.configuration.LoggerConfiguration, \
+io.wiretap.configuration.HttpAccessEventEncoderConfiguration
