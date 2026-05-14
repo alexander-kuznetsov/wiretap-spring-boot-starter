@@ -66,6 +66,7 @@ dependencies {
     compileOnly("org.springframework.boot:spring-boot-starter-webflux")
 
     annotationProcessor("org.projectlombok:lombok:$lombokVersion")
+    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     compileOnly("org.projectlombok:lombok:$lombokVersion")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")

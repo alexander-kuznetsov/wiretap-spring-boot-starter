@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="logback-access-console-appender.xml"/>
+    <include optional="true" resource="logback-access-file-appender.xml"/>
+</configuration>

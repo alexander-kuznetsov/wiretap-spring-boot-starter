@@ -82,6 +82,25 @@ wiretap:
     path: /var/log/myapp     # по умолчанию: /var/log/wiretap
 ```
 
+### Свой logback-конфиг
+
+Wiretap кладёт в jar дефолтные `logback-spring.xml` и `logback-access.xml`
+— именно за счёт них JSON-вывод работает «из коробки». Если в вашем
+приложении есть собственный `src/main/resources/logback-spring.xml`, он
+перекроет дефолтный (приоритет classpath). Чтобы сохранить wiretap-овские
+encoder'ы, подключайте фрагменты явно:
+
+```xml
+<!-- src/main/resources/logback-spring.xml -->
+<configuration>
+    <include resource="logback-console-appender.xml"/>
+    <!-- сюда ваши кастомные appender'ы -->
+</configuration>
+```
+
+То же самое относится к `logback-access.xml` и
+`logback-access-console-appender.xml`.
+
 ## Поля лога приложения
 
 Стандартные поля, которые Wiretap добавляет к каждому `log.info(...)` / `log.error(...)`:

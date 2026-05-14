@@ -82,6 +82,25 @@ wiretap:
     path: /var/log/myapp     # default: /var/log/wiretap
 ```
 
+### Custom logback config
+
+Wiretap ships a default `logback-spring.xml` and `logback-access.xml`
+inside the jar — that is what makes the JSON output appear out of the box.
+If your application has its own `src/main/resources/logback-spring.xml`,
+it overrides the bundled one (classpath order). To keep Wiretap's
+encoders, `<include>` the fragments:
+
+```xml
+<!-- src/main/resources/logback-spring.xml -->
+<configuration>
+    <include resource="logback-console-appender.xml"/>
+    <!-- your custom appenders here -->
+</configuration>
+```
+
+The same applies to `logback-access.xml` and
+`logback-access-console-appender.xml`.
+
 ## Application log fields
 
 Standard fields emitted for every `log.info(...)` / `log.error(...)` call:
