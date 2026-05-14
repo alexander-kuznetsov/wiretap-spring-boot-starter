@@ -386,6 +386,39 @@ wiretap:
       - "/health"
 ```
 
+### Буферизация тела между фильтрами
+
+Стандартный `TeeFilter` из logback-access умеет захватывать тело
+только при условии, что цепочка сервлет-фильтров отработала полностью
+и запись шла через оригинальные потоки. Если кастомный фильтр,
+exception resolver или фреймворк (например, Spring Security) подменяет
+поток ответа или прерывает цепочку, к моменту работы access-encoder'а
+тело уже потеряно.
+
+Для таких edge-кейсов сохраняйте тело через `BufferedHttpBodyHolder` —
+Wiretap прочитает его, когда будет собирать `http_info`:
+
+```java
+@Component
+public class CapturedBodyExceptionResolver implements HandlerExceptionResolver {
+    @Override
+    public ModelAndView resolveException(HttpServletRequest req, HttpServletResponse res,
+                                         Object handler, Exception ex) {
+        String reqBody  = readMyCachedRequestBody(req);
+        String respBody = renderErrorResponse(ex);
+        BufferedHttpBodyHolder.put(req, new BufferedHttpMessageInfo(
+                reqBody,  reqBody.length(),
+                respBody, respBody.length()));
+        // ...записываем ответ как обычно
+        return new ModelAndView();
+    }
+}
+```
+
+Буфер кладётся в атрибут `HttpServletRequest` — он привязан к
+жизненному циклу запроса (никакого `ThreadLocal`, безопасно под
+виртуальными потоками, ручная очистка не нужна).
+
 ## WebClient: non-blocking семантика и известные ограничения
 
 `WebClient` — неблокирующий HTTP-клиент, у которого два главных преимущества:

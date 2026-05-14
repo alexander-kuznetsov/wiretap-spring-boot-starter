@@ -386,6 +386,38 @@ wiretap:
       - "/health"
 ```
 
+### Buffering body across filter boundaries
+
+Logback-access's standard `TeeFilter` captures bodies only when the
+servlet filter chain runs in full and writes through the original
+streams. When a custom filter, exception resolver, or framework
+(e.g. Spring Security) replaces the response stream or interrupts the
+chain, the body is gone by the time the access encoder runs.
+
+For those edge cases, stash the body via `BufferedHttpBodyHolder` —
+Wiretap reads it back when it builds the `http_info` payload:
+
+```java
+@Component
+public class CapturedBodyExceptionResolver implements HandlerExceptionResolver {
+    @Override
+    public ModelAndView resolveException(HttpServletRequest req, HttpServletResponse res,
+                                         Object handler, Exception ex) {
+        String reqBody  = readMyCachedRequestBody(req);
+        String respBody = renderErrorResponse(ex);
+        BufferedHttpBodyHolder.put(req, new BufferedHttpMessageInfo(
+                reqBody,  reqBody.length(),
+                respBody, respBody.length()));
+        // ...write the response as usual
+        return new ModelAndView();
+    }
+}
+```
+
+The buffer is stored as an `HttpServletRequest` attribute, so it is
+tied to the request lifecycle (no `ThreadLocal`, safe under virtual
+threads, no explicit cleanup needed).
+
 ## WebClient: non-blocking semantics and known limitations
 
 `WebClient` is a non-blocking HTTP client whose main wins are (1) many concurrent

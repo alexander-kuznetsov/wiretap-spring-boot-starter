@@ -2,7 +2,6 @@ package io.wiretap.configuration;
 
 import io.micrometer.tracing.Tracer;
 import io.wiretap.http.incoming.filter.AccessLogTraceIdForwarder;
-import io.wiretap.http.incoming.filter.BufferedHttpBodyThreadCleaner;
 import io.wiretap.http.incoming.interceptor.CorrelationHeadersMdcForwarder;
 import io.wiretap.http.incoming.provider.httpinfo.HttpInfoMessageProvider;
 import io.wiretap.http.incoming.provider.message.MessageProvider;
@@ -16,7 +15,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -38,14 +36,6 @@ public class IncomingHttpConfiguration implements WebMvcConfigurer {
     @Bean
     public FilterRegistrationBean<AccessLogTraceIdForwarder> sleuthAttrsFilter(Tracer tracer) {
         return new FilterRegistrationBean<>(new AccessLogTraceIdForwarder(tracer));
-    }
-
-    @Bean
-    public FilterRegistrationBean<BufferedHttpBodyThreadCleaner> errorResponseCleanFilter() {
-        FilterRegistrationBean<BufferedHttpBodyThreadCleaner> bean =
-                new FilterRegistrationBean<>(new BufferedHttpBodyThreadCleaner());
-        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
-        return bean;
     }
 
     @Bean

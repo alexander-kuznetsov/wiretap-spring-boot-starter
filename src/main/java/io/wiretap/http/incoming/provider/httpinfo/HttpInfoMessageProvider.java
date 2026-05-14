@@ -5,12 +5,14 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import io.wiretap.http.message.BufferedHttpMessageInfo;
 import io.wiretap.http.message.HttpMessageInfo;
 import io.wiretap.http.message.HttpMessageInfo.RequestDirection;
 import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
@@ -89,19 +91,21 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
             final String requestUrl = event.getRequestURI();
 
             final HttpInfoLogMessageSettings specificLogSettings = logSettings.getRequestSettingsByUrl(requestUrl);
+            final HttpServletRequest httpRequest = event.getRequest();
+            final BufferedHttpMessageInfo buffered = BufferedHttpBodyHolder.get(httpRequest);
 
             final FieldVisibilityMap<HttpInfoLogMessageSettings.HttpConfigurableField> visibilityMap = specificLogSettings.getVisibilitySettings();
             final Supplier<JsonNode> responseBodySupplier = () -> {
                 final MediaType responseContentType = Optional.ofNullable(event.getResponseHeaderMap().get(HttpHeaders.CONTENT_TYPE))
                         .map(MediaType::valueOf)
                         .orElse(null);
-                return bodyParser.parseResponseBody(getResponseBodyWithFallback(event.getResponseContent()), requestUrl, responseContentType, specificLogSettings.getHttpBodySettings());
+                return bodyParser.parseResponseBody(responseBodyWithFallback(event.getResponseContent(), buffered), requestUrl, responseContentType, specificLogSettings.getHttpBodySettings());
             };
             final Supplier<JsonNode> requestBodySupplier = () -> {
                 final MediaType requestContentType = Optional.ofNullable(event.getRequestHeaderMap().get(HttpHeaders.CONTENT_TYPE))
                         .map(MediaType::valueOf)
                         .orElse(null);
-                return bodyParser.parseRequestBody(getRequestBodyWithFallback(event.getRequestContent()), requestUrl, requestContentType, specificLogSettings.getHttpBodySettings());
+                return bodyParser.parseRequestBody(requestBodyWithFallback(event.getRequestContent(), buffered), requestUrl, requestContentType, specificLogSettings.getHttpBodySettings());
             };
 
 
@@ -122,9 +126,9 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
                     .elapsedTime(event.getElapsedTime())
                     .returnCode(event.getStatusCode())
                     .requestBody(requestBodyString)
-                    .requestBodyLength(getRequestBodyLengthWithFallback(event)) // capture the original (pre-processing) body length
+                    .requestBodyLength(requestBodyLengthWithFallback(event, buffered)) // capture the original (pre-processing) body length
                     .responseBody(responseBodyString)
-                    .responseBodyLength(getResponseBodyLengthWithFallback(event)) // capture the original (pre-processing) body length
+                    .responseBodyLength(responseBodyLengthWithFallback(event, buffered)) // capture the original (pre-processing) body length
                     .xmlBodyType(getXmlType(event.getRequestContent(), isXmlBody))
                     .requestParams(maskRequestParams(visibilityMap.getVisible(REQUEST_PARAMS, requestParamsSupplier)))
                     .requestHeaders(visibilityMap.getVisible(REQUEST_HEADERS, requestHeadersSupplier))
@@ -138,27 +142,29 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
             );
         } catch (Throwable e) {
             log.error("Error while providing to log http-info...", e);
-        } finally {
-            BufferedHttpBodyThreadKeeper.clear();
         }
     }
 
-    private long getRequestBodyLengthWithFallback(IAccessEvent event) {
+    private static long requestBodyLengthWithFallback(IAccessEvent event, @Nullable BufferedHttpMessageInfo buffered) {
         int length = event.getRequestContent().length();
-        return length != 0 ? length : BufferedHttpBodyThreadKeeper.getRequestBodyLength();
+        if (length != 0) return length;
+        return buffered != null ? buffered.requestBodyLength() : 0L;
     }
 
-    private long getResponseBodyLengthWithFallback(IAccessEvent event) {
+    private static long responseBodyLengthWithFallback(IAccessEvent event, @Nullable BufferedHttpMessageInfo buffered) {
         int length = event.getResponseContent().length();
-        return length != 0 ? length : BufferedHttpBodyThreadKeeper.getResponseBodyLength();
+        if (length != 0) return length;
+        return buffered != null ? buffered.responseBodyLength() : 0L;
     }
 
-    private String getRequestBodyWithFallback(String requestBodyString) {
-        return StringUtils.isEmpty(requestBodyString) ? BufferedHttpBodyThreadKeeper.getRequestBody() : requestBodyString;
+    private static String requestBodyWithFallback(String requestBodyString, @Nullable BufferedHttpMessageInfo buffered) {
+        if (!StringUtils.isEmpty(requestBodyString)) return requestBodyString;
+        return buffered != null ? buffered.requestBody() : null;
     }
 
-    private String getResponseBodyWithFallback(String responseBodyString) {
-        return StringUtils.isEmpty(responseBodyString) ? BufferedHttpBodyThreadKeeper.getResponseBody() : responseBodyString;
+    private static String responseBodyWithFallback(String responseBodyString, @Nullable BufferedHttpMessageInfo buffered) {
+        if (!StringUtils.isEmpty(responseBodyString)) return responseBodyString;
+        return buffered != null ? buffered.responseBody() : null;
     }
 
     private String getMaskedRequestUrl(String notMaskedUrl) {
