@@ -16,5 +16,6 @@ public enum AppLogField {
     CALLER_FILE,
     MESSAGE,
     HTTP_INFO,
+    KAFKA_INFO,
     EXTRA
 }

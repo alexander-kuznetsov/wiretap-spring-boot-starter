@@ -1,6 +1,5 @@
 package io.wiretap.util;
 
-import io.wiretap.http.message.settings.HttpInfoLogMessageSettings;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 
 import java.io.IOException;
@@ -21,9 +20,7 @@ public class FieldVisibilityMap<K extends Enum<K>> extends EnumMap<K, Boolean> {
         super(m);
     }
 
-    public <T> T getVisible(final HttpInfoLogMessageSettings.HttpConfigurableField field, Supplier<T> param) throws IOException {
-        return Boolean.TRUE.equals(
-                this.get(field)
-        ) ? param.get() : null;
+    public <T> T getVisible(final K field, Supplier<T> param) throws IOException {
+        return Boolean.TRUE.equals(this.get(field)) ? param.get() : null;
     }
 }

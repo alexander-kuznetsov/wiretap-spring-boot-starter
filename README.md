@@ -320,6 +320,7 @@ Each source has its own property prefix:
 | Outbound `FeignClient` | `wiretap.feign-client-interceptor.*` | `.enabled=false` to disable |
 | Outbound `WebClient` / `GraphQLWebClient` | `wiretap.web-client-interceptor.*` | `.enabled=false` to disable |
 | Outbound `WebServiceTemplate` (SOAP) | `wiretap.web-service-template-interceptor.*` | `.enabled=false` to disable |
+| Outbound Kafka producer | `wiretap.kafka-producer-interceptor.*` | `.enabled=false` to disable |
 
 ### Field visibility
 
@@ -502,6 +503,79 @@ If your WebClient calls are mostly small REST/GraphQL request/response and you
 serve modest QPS, the defaults are fine. For high-QPS, large-body, or
 streaming workloads, enable `async-logging` and double-check that
 `max-body-length` is tight enough to keep per-request memory predictable.
+
+## Kafka logging
+
+When `spring-kafka` is on the classpath, Wiretap auto-registers a Kafka
+`ProducerInterceptor` that captures every produced record. The hook is
+`org.apache.kafka.clients.producer.ProducerInterceptor.onSend(...)` — it runs
+**before** the configured `Serializer` touches the payload, so the log line
+holds the typed `key` / `value` exactly as the application produced them, not
+the on-the-wire bytes:
+
+```json
+{
+  "@timestamp": "...",
+  "level": "INFO",
+  "logger": "io.wiretap.kafka.KafkaLogSink",
+  "message": "Captured outgoing kafka message orders.events",
+  "kafka_info": {
+    "direction": "OUTGOING",
+    "topic": "orders.events",
+    "partition": null,
+    "client_id": "checkout-api-producer-1",
+    "key": "ord-42",
+    "key_length": 6,
+    "value": "{\"orderId\":\"ord-42\",\"amount\":100}",
+    "value_length": 33,
+    "headers": { "x-trace-id": "0123456789abcdef" }
+  }
+}
+```
+
+Broker-side fields (`partition`, `offset`, `duration`) are not known at the
+pre-serialization point. A second log line is emitted from
+`onAcknowledgement` **only on delivery failure** with `status=ERROR`,
+`error_class`, `error_message` and whatever metadata the broker returned.
+Successful acknowledgements are already covered by the `onSend` line.
+
+```yaml
+wiretap:
+  kafka-producer-interceptor:
+    enabled: true                            # opt-out toggle
+    headers:                                 # which headers end up in the log
+      - x-trace-id
+      - x-request-id
+    visibility-settings:
+      VALUE: true                            # also: TOPIC PARTITION CLIENT_ID KEY HEADERS TIMESTAMP STATUS ...
+    enable-value-masking: true               # call KafkaValueMaskingHandler for key/value
+    enable-headers-masking: true             # call KafkaHeaderMaskingHandler for header values
+    enable-topic-masking: true               # call KafkaTopicMaskingHandler for topic name
+    message-body-settings:
+      enable-value-truncating: true
+      max-value-length: 2000
+      enable-value-masking: true             # combines with the top-level enable-value-masking
+    exclude-topic-patterns:
+      - ".*\\.internal\\..*"
+    specific-topic-settings:
+      - match-topic-pattern: "orders\\..*"
+        visibility-settings:
+          VALUE: false                       # don't log payloads on the orders.* family
+```
+
+Three opt-in masking SPIs are exposed; register a single Spring bean each:
+
+| Interface | Applied to |
+|---|---|
+| `io.wiretap.kafka.message.KafkaValueMaskingHandler` | `key` and `value` |
+| `io.wiretap.kafka.message.KafkaHeaderMaskingHandler` | each header value |
+| `io.wiretap.kafka.message.KafkaTopicMaskingHandler` | topic name |
+
+The registration mechanism is the Spring Boot
+`DefaultKafkaProducerFactoryCustomizer` — Wiretap adds
+`interceptor.classes=io.wiretap.kafka.producer.WiretapProducerInterceptor`
+to the producer factory; you keep using `KafkaTemplate` / `@KafkaListener`
+without further wiring.
 
 ## Tracing
 

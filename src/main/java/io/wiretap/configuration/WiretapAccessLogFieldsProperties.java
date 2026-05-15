@@ -3,6 +3,7 @@ package io.wiretap.configuration;
 import io.wiretap.http.incoming.provider.trace.SpanIdProvider;
 import io.wiretap.http.incoming.provider.trace.TraceIdProvider;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
+import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -35,9 +36,13 @@ public class WiretapAccessLogFieldsProperties {
     private String level = "level";
     private String message = "message";
     private String httpInfo = "http_info";
+    private String kafkaInfo = "kafka_info";
 
     /** Names of fields nested inside the {@code http_info} object. */
     private HttpAccessFieldNames http = new HttpAccessFieldNames();
+
+    /** Names of fields nested inside the {@code kafka_info} object. */
+    private KafkaAccessFieldNames kafka = new KafkaAccessFieldNames();
 
     @PostConstruct
     public void apply() {

@@ -20,6 +20,7 @@ import org.springframework.core.Ordered;
         OutgoingRestClientConfiguration.class,
         OutgoingFeignClientConfiguration.class,
         OutgoingWebServiceTemplateConfiguration.class,
+        OutgoingKafkaProducerConfiguration.class,
         WiretapAccessLogConfiguration.class,
         WiretapAppLogConfiguration.class,
         WiretapTracingConfiguration.class

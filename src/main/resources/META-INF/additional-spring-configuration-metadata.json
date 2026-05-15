@@ -790,6 +790,59 @@
       "type": "java.lang.String",
       "description": "Name of the inbound header whose value is emitted as the session_key field in HTTP access logs.",
       "defaultValue": "x-session-key"
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle registration of the Wiretap Kafka producer interceptor.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.headers",
+      "type": "java.util.Collection<java.lang.String>",
+      "description": "Record header names that are captured and logged.",
+      "defaultValue": ["x-trace-id", "x-request-id"]
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.exclude-topic-patterns",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Topic name regex patterns to skip from logging entirely."
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.enable-value-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of key and value via KafkaValueMaskingHandler beans.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.enable-headers-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of header values via KafkaHeaderMaskingHandler beans.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.enable-topic-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of the topic name via KafkaTopicMaskingHandler beans.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.message-body-settings.enable-value-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle per-record value masking (combines with enable-value-masking).",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.message-body-settings.enable-value-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Truncate values longer than max-value-length.",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.kafka-producer-interceptor.message-body-settings.max-value-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged value length before truncation.",
+      "defaultValue": 2000
     }
   ]
 }

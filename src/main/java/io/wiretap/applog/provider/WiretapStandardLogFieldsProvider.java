@@ -119,6 +119,9 @@ public class WiretapStandardLogFieldsProvider {
         if (props.isVisible(AppLogField.HTTP_INFO)) {
             writeJsonMdcField(gen, f.getHttpInfo(), event, "HTTP-REQUEST-LOG");
         }
+        if (props.isVisible(AppLogField.KAFKA_INFO)) {
+            writeJsonMdcField(gen, f.getKafkaInfo(), event, "KAFKA-MESSAGE-LOG");
+        }
         if (props.isVisible(AppLogField.EXTRA)) {
             writeJsonMdcField(gen, f.getExtra(), event, "LOG_EXTRA");
         }

@@ -64,6 +64,7 @@ dependencies {
     implementation("javax.xml.soap:javax.xml.soap-api:1.4.0")
 
     compileOnly("org.springframework.boot:spring-boot-starter-webflux")
+    compileOnly("org.springframework.kafka:spring-kafka")
 
     annotationProcessor("org.projectlombok:lombok:$lombokVersion")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
@@ -71,6 +72,8 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webflux")
+    testImplementation("org.springframework.kafka:spring-kafka")
+    testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.wiremock:wiremock-standalone:3.6.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testCompileOnly("org.projectlombok:lombok:$lombokVersion")

@@ -48,6 +48,7 @@ public class WiretapAppLogProperties {
         private String callerFile = "caller_file";
         private String message = "message";
         private String httpInfo = "http_info";
+        private String kafkaInfo = "kafka_info";
         private String extra = "extra";
     }
 }
