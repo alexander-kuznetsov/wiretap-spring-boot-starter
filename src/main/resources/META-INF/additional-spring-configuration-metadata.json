@@ -843,6 +843,59 @@
       "type": "java.lang.Integer",
       "description": "Maximum logged value length before truncation.",
       "defaultValue": 2000
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle registration of the Wiretap Kafka consumer interceptor.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.headers",
+      "type": "java.util.Collection<java.lang.String>",
+      "description": "Record header names that are captured and logged.",
+      "defaultValue": ["x-trace-id", "x-request-id"]
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.exclude-topic-patterns",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Topic name regex patterns to skip from logging entirely."
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.enable-value-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of key and value via KafkaValueMaskingHandler beans.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.enable-headers-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of header values via KafkaHeaderMaskingHandler beans.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.enable-topic-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle masking of the topic name via KafkaTopicMaskingHandler beans.",
+      "defaultValue": true
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.message-body-settings.enable-value-masking",
+      "type": "java.lang.Boolean",
+      "description": "Toggle per-record value masking (combines with enable-value-masking).",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.message-body-settings.enable-value-truncating",
+      "type": "java.lang.Boolean",
+      "description": "Truncate values longer than max-value-length.",
+      "defaultValue": false
+    },
+    {
+      "name": "wiretap.kafka-consumer-interceptor.message-body-settings.max-value-length",
+      "type": "java.lang.Integer",
+      "description": "Maximum logged value length before truncation.",
+      "defaultValue": 2000
     }
   ]
 }

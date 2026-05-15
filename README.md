@@ -321,6 +321,7 @@ Each source has its own property prefix:
 | Outbound `WebClient` / `GraphQLWebClient` | `wiretap.web-client-interceptor.*` | `.enabled=false` to disable |
 | Outbound `WebServiceTemplate` (SOAP) | `wiretap.web-service-template-interceptor.*` | `.enabled=false` to disable |
 | Outbound Kafka producer | `wiretap.kafka-producer-interceptor.*` | `.enabled=false` to disable |
+| Inbound Kafka consumer | `wiretap.kafka-consumer-interceptor.*` | `.enabled=false` to disable |
 
 ### Field visibility
 
@@ -576,6 +577,50 @@ The registration mechanism is the Spring Boot
 `interceptor.classes=io.wiretap.kafka.producer.WiretapProducerInterceptor`
 to the producer factory; you keep using `KafkaTemplate` / `@KafkaListener`
 without further wiring.
+
+### Consumer
+
+The consumer side is symmetric. Wiretap registers a Kafka
+`ConsumerInterceptor` via `DefaultKafkaConsumerFactoryCustomizer`. The
+hook is `org.apache.kafka.clients.consumer.ConsumerInterceptor.onConsume(...)`
+— it runs **after** the configured `Deserializer` has produced typed
+`key` / `value`, but **before** the records are returned to the
+application listener. That gives the same object representation the
+listener will see, while letting the log line precede any business
+processing (and any deserialization failures happen earlier and surface
+as broker-level errors, not as missing log entries).
+
+```json
+{
+  "kafka_info": {
+    "direction": "INCOMING",
+    "topic": "orders.events",
+    "partition": 3,
+    "offset": 18472,
+    "client_id": "checkout-api-consumer-1",
+    "group_id": "checkout-group",
+    "key": "ord-42",
+    "value": "{\"orderId\":\"ord-42\"}",
+    "timestamp": "2026-05-07T10:14:32.918Z",
+    "timestamp_type": "CREATE_TIME"
+  }
+}
+```
+
+```yaml
+wiretap:
+  kafka-consumer-interceptor:
+    enabled: true
+    visibility-settings:
+      VALUE: true
+    exclude-topic-patterns:
+      - "__consumer_offsets"
+```
+
+`onCommit` is not logged — commit-time activity is not interesting for
+an access log. The three masking SPIs (`KafkaValueMaskingHandler`,
+`KafkaHeaderMaskingHandler`, `KafkaTopicMaskingHandler`) apply to the
+consumer side as well; registering a single bean covers both directions.
 
 ## Tracing
 
