@@ -62,7 +62,30 @@ correlation ID и встроенным маскированием чувстви
 
 ```gradle
 dependencies {
-    implementation 'io.wiretap:wiretap:0.1.0-SNAPSHOT'
+    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.0'
+}
+```
+
+Артефакт опубликован в **Maven Central**, поэтому `mavenCentral()` —
+дефолтный репозиторий любого Spring Boot проекта — уже подходит, без
+дополнительной аутентификации.
+
+Снапшоты, если нужны до следующего релиза, лежат в GitHub Packages:
+
+```gradle
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://maven.pkg.github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GITHUB_TOKEN")    // PAT с read:packages
+        }
+    }
+}
+
+dependencies {
+    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.1-SNAPSHOT'
 }
 ```
 

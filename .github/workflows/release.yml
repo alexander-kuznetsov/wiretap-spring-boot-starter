@@ -1,0 +1,40 @@
+name: release-to-central
+
+on:
+  push:
+    tags:
+      - 'v*'                       # v0.1.0, v0.1.1, ...
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.0). Must already exist on origin.'
+        required: true
+
+jobs:
+  publish:
+    name: Publish to Maven Central
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Run tests
+        run: ./gradlew test --console=plain
+      - name: Publish to Sonatype Central
+        run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache --console=plain
+        env:
+          # Sonatype Central Portal user token (Settings → User → Generate User Token).
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          # Armored PGP private key (gpg --armor --export-secret-keys <KEYID>) + its passphrase.
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}

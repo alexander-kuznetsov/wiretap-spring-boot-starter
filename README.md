@@ -63,10 +63,22 @@ ID propagation, and built-in masking of sensitive data.
 ## Quick start
 
 ```gradle
+dependencies {
+    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.0'
+}
+```
+
+The artifact is published to **Maven Central**, so `mavenCentral()` —
+which is already the default repository in most Spring Boot projects —
+is enough; no extra credentials.
+
+If you need a fresh snapshot before the next release lands on Central,
+add GitHub Packages as a secondary repo:
+
+```gradle
 repositories {
     mavenCentral()
     maven {
-        // Snapshots until Maven Central publication (Phase 7).
         url = uri("https://maven.pkg.github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
         credentials {
             username = System.getenv("GITHUB_ACTOR")    // your GitHub login
@@ -76,13 +88,9 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.wiretap:wiretap:0.1.0-SNAPSHOT'
+    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.1-SNAPSHOT'
 }
 ```
-
-GitHub Packages requires authentication even for public reads — generate a
-[personal access token](https://github.com/settings/tokens) with the
-`read:packages` scope and export it as `GITHUB_TOKEN`.
 
 That's it — no other configuration is required. Wiretap auto-configures itself via Spring Boot's
 auto-configuration mechanism. Logs are emitted to stdout in JSON format. Inbound HTTP

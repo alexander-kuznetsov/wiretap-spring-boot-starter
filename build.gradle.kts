@@ -1,10 +1,15 @@
+import com.vanniktech.maven.publish.JavaLibrary
+import com.vanniktech.maven.publish.JavadocJar
+
 plugins {
     `java-library`
     `maven-publish`
+    signing
     id("io.spring.dependency-management") version "1.1.7"
+    id("com.vanniktech.maven.publish") version "0.30.0"
 }
 
-group = "io.wiretap"
+group = "io.github.alexander-kuznetsov"
 version = "0.1.0-SNAPSHOT"
 
 // ---------------------------------------------------------------------------
@@ -30,6 +35,14 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(javaToolchain)
     }
+    // sources/javadoc jars enabled implicitly by the vanniktech plugin's
+    // JavaLibrary publish profile (see mavenPublishing block).
+}
+
+// Javadoc на этой версии Java падает на странных constructs из логбэка /
+// micrometer, поэтому ослабляем strict-mode — релиз-блокер не нужен.
+tasks.withType<Javadoc>().configureEach {
+    (options as? StandardJavadocDocletOptions)?.addStringOption("Xdoclint:none", "-quiet")
 }
 
 repositories {
@@ -95,30 +108,52 @@ tasks.test {
 // JaCoCo coverage will be added once a release supports Java 25 class files
 // (current 0.8.13 stops at Java 24). Track on https://github.com/jacoco/jacoco/issues
 
-// Maven Central via JReleaser is Phase 7. Until then we publish snapshots to
-// GitHub Packages and let consumers build against mavenLocal.
-publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"])
-            pom {
-                name.set("Wiretap")
-                description.set("Structured JSON logging for Spring Boot — captures HTTP and Kafka traffic across all the standard clients.")
-                url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
-                licenses {
-                    license {
-                        name.set("Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                }
-                scm {
-                    url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
-                    connection.set("scm:git:https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter.git")
-                    developerConnection.set("scm:git:ssh://git@github.com/alexander-kuznetsov/wiretap-spring-boot-starter.git")
-                }
+// Maven Central via Sonatype Central Portal (vanniktech plugin) for releases.
+// GitHub Packages remains for SNAPSHOTs from main (see .github/workflows/publish.yml).
+mavenPublishing {
+    publishToMavenCentral()
+    signAllPublications()
+
+    // Tells vanniktech which artifacts to produce: jar + sources + javadoc.
+    configure(JavaLibrary(javadocJar = JavadocJar.Javadoc(), sourcesJar = true))
+
+    coordinates("io.github.alexander-kuznetsov", "wiretap", project.version.toString())
+
+    pom {
+        name.set("Wiretap")
+        description.set("Structured JSON logging for Spring Boot — captures HTTP and Kafka traffic across all the standard clients.")
+        url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
+        inceptionYear.set("2026")
+        licenses {
+            license {
+                name.set("Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                distribution.set("repo")
             }
         }
+        developers {
+            developer {
+                id.set("alexander-kuznetsov")
+                name.set("Aleksandr Kuznetsov")
+                email.set("suntey.kuznetsov@gmail.com")
+                url.set("https://github.com/alexander-kuznetsov")
+            }
+        }
+        scm {
+            url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
+            connection.set("scm:git:https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter.git")
+            developerConnection.set("scm:git:ssh://git@github.com/alexander-kuznetsov/wiretap-spring-boot-starter.git")
+        }
+        issueManagement {
+            system.set("GitHub")
+            url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/issues")
+        }
     }
+}
+
+// Дополнительный сток для SNAPSHOT'ов — GitHub Packages.
+// Central Portal не принимает -SNAPSHOT в main repo, для них публикация остаётся в Packages.
+publishing {
     repositories {
         maven {
             name = "GitHubPackages"
