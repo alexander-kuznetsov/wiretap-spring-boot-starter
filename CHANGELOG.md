@@ -6,6 +6,17 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-18
+
+### Fixed
+- `WiretapAccessFieldProvider` and `WiretapLogFieldProvider` are now
+  implementable in consumer projects. The SPI methods take
+  `ch.qos.logback.access.spi.IAccessEvent` and
+  `ch.qos.logback.classic.spi.ILoggingEvent` as arguments, so the
+  underlying jars must be on the compile classpath of consumers; both
+  dependencies were promoted from `implementation` to `api` in the
+  wiretap build.
+
 ## [0.1.1] - 2026-05-18
 
 ### Build

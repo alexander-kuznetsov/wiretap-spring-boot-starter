@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "io.github.alexander-kuznetsov"
-version = "0.1.2-SNAPSHOT"
+version = "0.1.2"
 
 // ---------------------------------------------------------------------------
 // Version matrix knobs. Override via -PspringBootVersion=... / -PjavaToolchain=21
@@ -64,10 +64,14 @@ dependencies {
     api("io.micrometer:micrometer-tracing-bridge-brave")
     api("io.github.openfeign:feign-core:$feignCoreVersion")
 
-    implementation("dev.akkinoc.spring.boot:logback-access-spring-boot-starter:$logbackAccessSpringVersion")
+    // api: WiretapAccessFieldProvider exposes ch.qos.logback.access.spi.IAccessEvent
+    // in its method signature; consumers implementing the SPI need it on compile classpath.
+    api("dev.akkinoc.spring.boot:logback-access-spring-boot-starter:$logbackAccessSpringVersion")
+    // api: WiretapLogFieldProvider exposes ch.qos.logback.classic.spi.ILoggingEvent.
+    // Usually present transitively via spring-boot-starter-logging, but we don't rely on that.
+    api("ch.qos.logback:logback-classic")
     implementation("net.logstash.logback:logstash-logback-encoder:$logstashLogbackEncoderVersion")
     implementation("ch.qos.logback.contrib:logback-jackson:$logbackJacksonVersion")
-    implementation("ch.qos.logback:logback-classic")
     implementation("org.codehaus.janino:janino")
 
     api("com.fasterxml.jackson.core:jackson-databind")
