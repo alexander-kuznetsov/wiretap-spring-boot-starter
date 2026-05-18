@@ -1,5 +1,6 @@
 import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
     `java-library`
@@ -10,7 +11,7 @@ plugins {
 }
 
 group = "io.github.alexander-kuznetsov"
-version = "0.1.1-SNAPSHOT"
+version = "0.1.1"
 
 // ---------------------------------------------------------------------------
 // Version matrix knobs. Override via -PspringBootVersion=... / -PjavaToolchain=21
@@ -111,7 +112,10 @@ tasks.test {
 // Maven Central via Sonatype Central Portal (vanniktech plugin) for releases.
 // GitHub Packages remains for SNAPSHOTs from main (see .github/workflows/publish.yml).
 mavenPublishing {
-    publishToMavenCentral()
+    // Sonatype Central Portal (the post-June-2024 endpoint).
+    // Without an explicit host the plugin falls back to the legacy OSSRH
+    // (s01.oss.sonatype.org), which returns HTTP 402 for Central-Portal accounts.
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
 
     // Tells vanniktech which artifacts to produce: jar + sources + javadoc.

@@ -6,7 +6,17 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-05-18
+## [0.1.1] - 2026-05-18
+
+### Build
+- Target Sonatype Central Portal explicitly in
+  `mavenPublishing.publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)`.
+  The previous attempt at 0.1.0 fell back to the legacy OSSRH endpoint
+  (`s01.oss.sonatype.org`) and returned HTTP 402 — the v0.1.0 tag
+  exists but no artifact was uploaded; 0.1.1 is the first published
+  release.
+
+## [0.1.0] - 2026-05-18 — withdrawn
 
 ### Added
 - Streaming-aware response logging for `WebClientLoggingFilter` — auto-detects
