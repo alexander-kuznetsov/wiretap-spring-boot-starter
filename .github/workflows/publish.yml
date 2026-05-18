@@ -1,0 +1,33 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'                    # versioned releases (v0.1.0, v1.0.0, ...)
+    branches:
+      - main                    # SNAPSHOT pushes
+  workflow_dispatch:            # manual triggers (re-publish a snapshot)
+
+jobs:
+  publish:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Run tests
+        run: ./gradlew test --console=plain
+      - name: Publish
+        run: ./gradlew publishMavenJavaPublicationToGitHubPackagesRepository --console=plain
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

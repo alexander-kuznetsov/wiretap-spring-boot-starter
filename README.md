@@ -6,6 +6,8 @@
 > capture across servlet, RestTemplate, RestClient, FeignClient, WebClient, and WebServiceTemplate.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![compatibility](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml)
+[![publish](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/publish.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/publish.yml)
 
 **Status:** `0.1.0-SNAPSHOT` — work in progress, public API not yet stable. Do not use in production.
 
@@ -61,12 +63,28 @@ ID propagation, and built-in masking of sensitive data.
 ## Quick start
 
 ```gradle
+repositories {
+    mavenCentral()
+    maven {
+        // Snapshots until Maven Central publication (Phase 7).
+        url = uri("https://maven.pkg.github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")    // your GitHub login
+            password = System.getenv("GITHUB_TOKEN")    // PAT with read:packages
+        }
+    }
+}
+
 dependencies {
     implementation 'io.wiretap:wiretap:0.1.0-SNAPSHOT'
 }
 ```
 
-That's it — no configuration is required. Wiretap auto-configures itself via Spring Boot's
+GitHub Packages requires authentication even for public reads — generate a
+[personal access token](https://github.com/settings/tokens) with the
+`read:packages` scope and export it as `GITHUB_TOKEN`.
+
+That's it — no other configuration is required. Wiretap auto-configures itself via Spring Boot's
 auto-configuration mechanism. Logs are emitted to stdout in JSON format. Inbound HTTP
 traffic is captured automatically; outbound capture happens for any `RestTemplate` / `RestClient` / `FeignClient` /
 `WebClient` / `WebServiceTemplate` constructed via Spring's auto-configured builders.

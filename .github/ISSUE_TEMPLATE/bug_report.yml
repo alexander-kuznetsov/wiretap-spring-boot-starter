@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a defect in Wiretap.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences. What did you expect, what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: wiretap-version
+    attributes:
+      label: Wiretap version
+      placeholder: "0.1.0-SNAPSHOT"
+    validations:
+      required: true
+  - type: input
+    id: spring-boot-version
+    attributes:
+      label: Spring Boot version
+      placeholder: "3.5.14"
+    validations:
+      required: true
+  - type: input
+    id: java-version
+    attributes:
+      label: Java version
+      placeholder: "21"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal application.yml / code snippet that triggers the issue.
+      render: yaml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Strip secrets before pasting.
+      render: text

@@ -95,12 +95,42 @@ tasks.test {
 // JaCoCo coverage will be added once a release supports Java 25 class files
 // (current 0.8.13 stops at Java 24). Track on https://github.com/jacoco/jacoco/issues
 
-// Publication setup will be wired through JReleaser to Maven Central in Phase 7.
-// For now keep maven-publish configured locally so consumers can build against snapshots.
+// Maven Central via JReleaser is Phase 7. Until then we publish snapshots to
+// GitHub Packages and let consumers build against mavenLocal.
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             from(components["java"])
+            pom {
+                name.set("Wiretap")
+                description.set("Structured JSON logging for Spring Boot — captures HTTP and Kafka traffic across all the standard clients.")
+                url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
+                licenses {
+                    license {
+                        name.set("Apache License, Version 2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
+                    connection.set("scm:git:https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/alexander-kuznetsov/wiretap-spring-boot-starter.git")
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
+            credentials {
+                username = providers.gradleProperty("gpr.user")
+                    .orElse(providers.environmentVariable("GITHUB_ACTOR"))
+                    .getOrElse("")
+                password = providers.gradleProperty("gpr.token")
+                    .orElse(providers.environmentVariable("GITHUB_TOKEN"))
+                    .getOrElse("")
+            }
         }
     }
 }
