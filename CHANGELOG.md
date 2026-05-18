@@ -6,6 +6,18 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-18
+
+### Added
+- New `HttpBodyMasker` SPI for structural body masking. Implement
+  `boolean appliesTo(String url)` and `JsonNode mask(JsonNode body)` —
+  wiretap walks all registered `HttpBodyMasker` beans, applies the
+  first one whose `appliesTo` returns `true`, and then still runs the
+  recursive `HttpBodyMaskingHandler` (if any) over the result. Lets
+  consumers mask specific fields on specific endpoints (e.g.
+  `remaining_auth` only on `/api/cardlimits/*`) without subclassing
+  `DefaultBodyParser`.
+
 ## [0.1.2] - 2026-05-18
 
 ### Fixed

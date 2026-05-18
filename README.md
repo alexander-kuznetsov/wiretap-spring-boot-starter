@@ -382,9 +382,35 @@ you need — each context is opt-in:
 | Interface | Applied to | Activation |
 |---|---|---|
 | `io.wiretap.applog.message.handler.MessageMaskingHandler` | `message` field in app logs | bean present + `wiretap.message-masking=true` (default) |
-| `io.wiretap.http.message.settings.body.HttpBodyMaskingHandler` | each field value in HTTP request/response bodies | bean present + `enable-body-masking=true` |
+| `io.wiretap.http.message.settings.body.HttpBodyMaskingHandler` | each field value in HTTP request/response bodies (recursive, no URL context) | bean present + `enable-body-masking=true` |
+| `io.wiretap.http.message.settings.body.HttpBodyMasker` | parsed JSON body as a whole, per-URL (structural — mask specific fields on specific endpoints) | bean present + `enable-body-masking=true`; first masker whose `appliesTo(url)` is `true` wins |
 | `io.wiretap.http.message.HttpUrlMaskingHandler` | full request URL (path + query string) | bean present + `enable-url-masking=true` |
 | `io.wiretap.http.message.HttpRequestParamsMaskingHandler` | each query parameter value in `request_params` | bean present + `enable-request-params-masking=true` (default) |
+
+`HttpBodyMasker` and `HttpBodyMaskingHandler` compose: the structural
+masker (if it matches) runs first on the JSON tree, then the recursive
+handler (if registered) runs over the result. Use the structural one
+for endpoint-specific rules, the recursive one for blanket string
+patterns:
+
+```java
+@Component
+public class CardLimitsMasker implements HttpBodyMasker {
+    private static final List<String> FIELDS = List.of("remaining_auth", "remaining_cash");
+
+    @Override public boolean appliesTo(String url) {
+        return url.contains("/api/cardlimits");
+    }
+
+    @Override public JsonNode mask(JsonNode body) {
+        if (body.isObject()) {
+            FIELDS.forEach(name -> Optional.ofNullable(body.findValue(name))
+                    .ifPresent(v -> ((ObjectNode) body).put(name, "***")));
+        }
+        return body;
+    }
+}
+```
 
 When no bean is registered for a context, data passes through unchanged regardless of
 the flag value. Per-URL control via `specific-http-info-settings[].enable-body-masking`

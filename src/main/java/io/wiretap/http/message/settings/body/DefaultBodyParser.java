@@ -11,6 +11,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -22,9 +24,16 @@ public class DefaultBodyParser implements BodyParser {
     private final ObjectMapper objectMapper = new ObjectMapper();
     @Nullable
     private final HttpBodyMaskingHandler maskingHandler;
+    private final List<HttpBodyMasker> bodyMaskers;
 
     public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler) {
+        this(maskingHandler, Collections.emptyList());
+    }
+
+    public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler,
+                             List<HttpBodyMasker> bodyMaskers) {
         this.maskingHandler = maskingHandler;
+        this.bodyMaskers = bodyMaskers == null ? Collections.emptyList() : bodyMaskers;
     }
     private static final String NOT_SUPPORTED_TYPE = "Logging of content type %s is not supported";
     private static final String LIMIT_EXCEEDED = "body exceeds the configured limit of %d characters";
@@ -139,10 +148,7 @@ public class DefaultBodyParser implements BodyParser {
      * right place to apply masking for performance reasons.
      */
     protected JsonNode afterParseRequestBody(final JsonNode body, final String requestUrl, HttpBodySettings settings) {
-        if (!settings.isEnableBodyMasking() || maskingHandler == null) {
-            return body;
-        }
-        return HttpBodyUtils.maskFieldsInBody(body, maskingHandler::maskBodyField);
+        return applyMasking(body, requestUrl, settings);
     }
 
     /**
@@ -151,9 +157,23 @@ public class DefaultBodyParser implements BodyParser {
      * right place to apply masking for performance reasons.
      */
     protected JsonNode afterParseResponseBody(final JsonNode body, final String requestUrl, HttpBodySettings settings) {
-        if (!settings.isEnableBodyMasking() || maskingHandler == null) {
+        return applyMasking(body, requestUrl, settings);
+    }
+
+    private JsonNode applyMasking(final JsonNode body, final String requestUrl, HttpBodySettings settings) {
+        if (body == null || !settings.isEnableBodyMasking()) {
             return body;
         }
-        return HttpBodyUtils.maskFieldsInBody(body, maskingHandler::maskBodyField);
+        JsonNode masked = body;
+        for (HttpBodyMasker m : bodyMaskers) {
+            if (m.appliesTo(requestUrl)) {
+                masked = m.mask(masked);
+                break;
+            }
+        }
+        if (maskingHandler != null) {
+            masked = HttpBodyUtils.maskFieldsInBody(masked, maskingHandler::maskBodyField);
+        }
+        return masked;
     }
 }
