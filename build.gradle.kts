@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "io.github.alexander-kuznetsov"
-version = "0.1.0-SNAPSHOT"
+version = "0.1.0"
 
 // ---------------------------------------------------------------------------
 // Version matrix knobs. Override via -PspringBootVersion=... / -PjavaToolchain=21

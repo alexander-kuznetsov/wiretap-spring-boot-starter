@@ -6,6 +6,8 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-18
+
 ### Added
 - Streaming-aware response logging for `WebClientLoggingFilter` — auto-detects
   `text/event-stream`, `application/x-ndjson`, `application/octet-stream`,
