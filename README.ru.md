@@ -624,6 +624,44 @@ wiretap:
 `KafkaTopicMaskingHandler`) работают и на стороне consumer'а; один бин
 покрывает обе стороны.
 
+### Распределённая трассировка через Kafka
+
+В цепочке три участника, каждый отвечает за свой шаг:
+
+1. **Пропагация на стороне producer'а** — `KafkaTemplate.send` должен
+   вставить заголовок пропагации (`b3` или W3C `traceparent`,
+   в зависимости от `management.tracing.propagation.type`). Это
+   делает `spring.kafka.template.observation-enabled=true`. Без него
+   ничего не уходит на проводе, и трейс обрывается на сервисе-
+   отправителе.
+
+2. **Строка `kafka_info` в consumer-логе wiretap'а** — wiretap читает
+   заголовок пропагации внутри своего `ConsumerInterceptor` и
+   восстанавливает MDC `traceId` / `spanId` только на время этой
+   единственной log-строки. Работает само по себе, никакого Spring-
+   свойства не требует, распознаются и B3, и W3C-форматы.
+
+3. **Прикладные логи внутри listener-метода** — чтобы
+   `log.info(...)` из `@KafkaListener` содержал `trace_id`, Spring
+   должен восстановить MDC на время вызова listener'а. Это делает
+   `spring.kafka.listener.observation-enabled=true`.
+
+Практический рецепт — включить оба:
+
+```yaml
+spring:
+  kafka:
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
+```
+
+Если оставить только `template.observation-enabled=true`,
+`kafka_info`-строка wiretap'а на consumer'е всё равно получит
+`trace_id`, но обычные `log.info` внутри listener'а останутся без
+трейса — обычно нужно включить оба.
+
 ## Трассировка
 
 Wiretap читает `trace_id` и `span_id` из активного контекста Micrometer Tracing

@@ -9,6 +9,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
+import org.slf4j.MDC;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -54,6 +55,22 @@ public class WiretapConsumerInterceptor<K, V> implements ConsumerInterceptor<K, 
         try {
             if (!s.isTopicLogged(record.topic())) return;
 
+            TraceContextExtractor.TraceContext trace = TraceContextExtractor.extract(record.headers());
+            if (trace != null) {
+                try (MDC.MDCCloseable t = MDC.putCloseable("traceId", trace.traceId());
+                     MDC.MDCCloseable p = MDC.putCloseable("spanId", trace.spanId())) {
+                    emitWithMessageInfo(s, record);
+                }
+                return;
+            }
+            emitWithMessageInfo(s, record);
+        } catch (Exception ignored) {
+            // never let logging break the consumer hot path
+        }
+    }
+
+    private void emitWithMessageInfo(KafkaLogSink s, ConsumerRecord<K, V> record) {
+        try {
             KafkaMessageInfo info = KafkaMessageInfo.builder()
                     .direction(KafkaMessageInfo.Direction.INCOMING)
                     .topic(record.topic())

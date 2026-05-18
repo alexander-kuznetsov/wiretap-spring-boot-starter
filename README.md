@@ -622,6 +622,43 @@ an access log. The three masking SPIs (`KafkaValueMaskingHandler`,
 `KafkaHeaderMaskingHandler`, `KafkaTopicMaskingHandler`) apply to the
 consumer side as well; registering a single bean covers both directions.
 
+### Distributed tracing across Kafka
+
+There are three actors involved, each owning one piece:
+
+1. **Producer-side propagation** — `KafkaTemplate.send` must inject the
+   propagation header (`b3` or W3C `traceparent`, depending on
+   `management.tracing.propagation.type`). This is what
+   `spring.kafka.template.observation-enabled=true` turns on. Without
+   it nothing crosses the wire, and the trace ends at the producer
+   service.
+
+2. **Wiretap `kafka_info` line on the consumer** — wiretap reads the
+   propagation header in its `ConsumerInterceptor` and restores MDC
+   `traceId` / `spanId` for the duration of that single log line.
+   This works on its own and needs no Spring property — both B3 and
+   W3C formats are recognised.
+
+3. **Application logs inside the listener method** — for
+   `log.info(...)` written by your `@KafkaListener` to carry
+   `trace_id`, Spring has to restore MDC for the listener invocation.
+   That is what `spring.kafka.listener.observation-enabled=true` does.
+
+So the practical recipe — both flags on:
+
+```yaml
+spring:
+  kafka:
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
+```
+
+Only `template.observation-enabled=true` would still give a
+trace-aware `kafka_info` line on the consumer, but the listener's own
+log calls would stay un-traced — usually you want both.
+
 ## Tracing
 
 Wiretap reads `trace_id` and `span_id` from the active Micrometer Tracing context

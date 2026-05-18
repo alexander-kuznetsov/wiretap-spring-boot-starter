@@ -138,4 +138,39 @@ class WiretapConsumerInterceptorTest {
         interceptor.onCommit(Map.of());
         assertThat(appender.list).isEmpty();
     }
+
+    @Test
+    void b3Header_restoresMdcTraceIdForLogLine() {
+        RecordHeaders headers = new RecordHeaders();
+        headers.add(new RecordHeader("b3",
+                "0123456789abcdef0123456789abcdef-aaaaaaaaaaaaaaaa-1".getBytes(StandardCharsets.UTF_8)));
+
+        ConsumerRecord<String, String> r = new ConsumerRecord<>(
+                "orders.events", 0, 1L, 0L, TimestampType.CREATE_TIME,
+                0, 0, "k", "v", headers, java.util.Optional.empty());
+
+        interceptor.onConsume(records(r));
+
+        assertThat(appender.list).hasSize(1);
+        Map<String, String> mdc = appender.list.get(0).getMDCPropertyMap();
+        assertThat(mdc).containsEntry("traceId", "0123456789abcdef0123456789abcdef");
+        assertThat(mdc).containsEntry("spanId", "aaaaaaaaaaaaaaaa");
+    }
+
+    @Test
+    void traceparentHeader_restoresMdcWhenB3Absent() {
+        RecordHeaders headers = new RecordHeaders();
+        headers.add(new RecordHeader("traceparent",
+                "00-00112233445566778899aabbccddeeff-1122334455667788-01".getBytes(StandardCharsets.UTF_8)));
+
+        ConsumerRecord<String, String> r = new ConsumerRecord<>(
+                "orders.events", 0, 1L, 0L, TimestampType.CREATE_TIME,
+                0, 0, "k", "v", headers, java.util.Optional.empty());
+
+        interceptor.onConsume(records(r));
+
+        Map<String, String> mdc = appender.list.get(0).getMDCPropertyMap();
+        assertThat(mdc).containsEntry("traceId", "00112233445566778899aabbccddeeff");
+        assertThat(mdc).containsEntry("spanId", "1122334455667788");
+    }
 }
