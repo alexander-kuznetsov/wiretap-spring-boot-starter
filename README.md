@@ -676,11 +676,21 @@ Leave it `false` (default) in production — log shippers parse single-line JSON
 
 ## Compatibility
 
-| | Version |
-|---|---|
-| Java | 17+ (tested on 17, 21, 25) |
-| Spring Boot | 3.2.x and later |
-| logback-access-spring-boot-starter | 4.1.x |
+| Wiretap | Spring Boot | Java | Status |
+|---------|-------------|------|--------|
+| 0.1.x | 3.2.7 (baseline) | 17, 21 | extended support |
+| 0.1.x | 3.4.5 | 17, 21, 25 | actively tested |
+| 0.1.x | 3.5.14 | 17, 21, 25 | actively tested, last 3.x minor |
+
+Boot 4.x is planned as a separate major (wiretap 2.x) — see
+[`COMPATIBILITY.md`](./COMPATIBILITY.md) for the policy and
+verification scripts.
+
+Override the matrix per build:
+
+```bash
+./gradlew test -PspringBootVersion=3.5.14 -PjavaToolchain=21
+```
 
 ## Building from source
 

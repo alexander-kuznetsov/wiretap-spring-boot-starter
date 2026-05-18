@@ -1,0 +1,51 @@
+name: compatibility
+
+on:
+  schedule:
+    # Nightly run catches new patch releases and transitive bumps.
+    - cron: '0 4 * * *'
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 'Boot ${{ matrix.spring-boot }} / Java ${{ matrix.java }}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['17', '21', '25']
+        spring-boot:
+          - '3.2.7'
+          - '3.4.5'
+          - '3.5.14'
+        exclude:
+          # Spring Boot 3.2.x is on extended support; we do not validate it
+          # against the bleeding-edge Java 25 toolchain.
+          - java: '25'
+            spring-boot: '3.2.7'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Run tests
+        run: |
+          ./gradlew clean test \
+            -PspringBootVersion=${{ matrix.spring-boot }} \
+            -PjavaToolchain=${{ matrix.java }} \
+            --console=plain
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ matrix.spring-boot }}-${{ matrix.java }}
+          path: build/reports/tests/test
+          retention-days: 7

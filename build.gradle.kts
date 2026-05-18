@@ -7,22 +7,30 @@ plugins {
 group = "io.wiretap"
 version = "0.1.0-SNAPSHOT"
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-}
+// ---------------------------------------------------------------------------
+// Version matrix knobs. Override via -PspringBootVersion=... / -PjavaToolchain=21
+// (see scripts/test-compatibility.sh and .github/workflows/compatibility.yml).
+// ---------------------------------------------------------------------------
+val springBootVersion = providers.gradleProperty("springBootVersion").getOrElse("3.2.7")
+val logbackAccessSpringVersion = providers.gradleProperty("logbackAccessSpringVersion")
+    .getOrElse(defaultLogbackAccessFor(springBootVersion))
+val feignCoreVersion = providers.gradleProperty("feignCoreVersion").getOrElse("13.5")
+val javaToolchain = providers.gradleProperty("javaToolchain").getOrElse("17").toInt()
 
 val lombokVersion = "1.18.42"
-val springBootVersion = "3.2.7"
-val springCloudVersion = "2023.0.2"
 val jacksonVersion = "2.17.1"
 val logstashLogbackEncoderVersion = "7.4"
 val logbackJacksonVersion = "0.1.5"
-val logbackAccessSpringVersion = "4.1.2"
 val httpClientVersion = "4.5.14"
 val guavaVersion = "33.2.1-jre"
 val micrometerTracingVersion = "1.3.1"
 val commonsValidatorVersion = "1.9.0"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(javaToolchain)
+    }
+}
 
 repositories {
     mavenCentral()
@@ -31,7 +39,6 @@ repositories {
 dependencyManagement {
     imports {
         mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:$springCloudVersion")
         mavenBom("com.fasterxml.jackson:jackson-bom:$jacksonVersion")
     }
 }
@@ -39,10 +46,9 @@ dependencyManagement {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-aop")
 
     api("io.micrometer:micrometer-tracing-bridge-brave")
-    api("io.github.openfeign:feign-core")
+    api("io.github.openfeign:feign-core:$feignCoreVersion")
 
     implementation("dev.akkinoc.spring.boot:logback-access-spring-boot-starter:$logbackAccessSpringVersion")
     implementation("net.logstash.logback:logstash-logback-encoder:$logstashLogbackEncoderVersion")
@@ -97,4 +103,14 @@ publishing {
             from(components["java"])
         }
     }
+}
+
+/**
+ * Maps Spring Boot major.minor → compatible logback-access-spring-boot-starter version.
+ * Update the 4.x branch once dev.akkinoc.spring.boot ships a Spring Boot 4 line.
+ */
+fun defaultLogbackAccessFor(boot: String): String = when {
+    boot.startsWith("3.") -> "4.1.2"
+    boot.startsWith("4.") -> "5.0.0"
+    else -> error("Unsupported Spring Boot version: $boot")
 }

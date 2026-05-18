@@ -13,7 +13,9 @@ import reactor.core.publisher.Mono;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -117,6 +119,14 @@ class CaptureBodyClientHttpRequest implements ClientHttpRequest {
     @SuppressWarnings("unchecked")
     public <T> T getNativeRequest() {
         return delegate.getNativeRequest();
+    }
+
+    // Implemented without @Override on purpose: Spring 6.2+ (Spring Boot 3.4+)
+    // promoted ClientHttpRequest#getAttributes() to an abstract method, while
+    // earlier versions don't declare it at all. This signature compiles on both,
+    // satisfies the abstract method on 6.2+, and is harmless on older versions.
+    public Map<String, Object> getAttributes() {
+        return Collections.emptyMap();
     }
 
     public String getCapturedBody() {
