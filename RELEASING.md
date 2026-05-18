@@ -94,12 +94,15 @@ within an hour.
 ### 4. Bump to the next snapshot
 
 ```diff
-- version = "0.1.0"
-+ version = "0.1.1-SNAPSHOT"
+- version = "0.1.1"
++ version = "0.1.2-SNAPSHOT"
 ```
 
-Commit and push to `main`. From now on snapshots flow back to GitHub
-Packages via `.github/workflows/publish.yml`.
+Commit and push to `main`. Snapshots can be published to the public
+Central snapshots repo by running the release workflow manually on the
+main branch (the vanniktech plugin routes `-SNAPSHOT` versions to
+`https://central.sonatype.com/repository/maven-snapshots/`). No
+separate workflow is required.
 
 ### 5. Manual workflow run (fallback)
 

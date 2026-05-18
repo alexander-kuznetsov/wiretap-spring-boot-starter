@@ -6,8 +6,9 @@
 > capture across servlet, RestTemplate, RestClient, FeignClient, WebClient, and WebServiceTemplate.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.alexander-kuznetsov/wiretap.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.alexander-kuznetsov/wiretap)
 [![compatibility](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml)
-[![publish](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/publish.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/publish.yml)
+[![release](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml)
 
 **Status:** `0.1.0-SNAPSHOT` — work in progress, public API not yet stable. Do not use in production.
 
@@ -64,31 +65,24 @@ ID propagation, and built-in masking of sensitive data.
 
 ```gradle
 dependencies {
-    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.0'
+    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.1'
 }
 ```
 
 The artifact is published to **Maven Central**, so `mavenCentral()` —
-which is already the default repository in most Spring Boot projects —
-is enough; no extra credentials.
+the default repository in most Spring Boot projects — is enough; no
+credentials, no extra setup.
 
-If you need a fresh snapshot before the next release lands on Central,
-add GitHub Packages as a secondary repo:
+For snapshots between releases, add the public Central snapshots repo:
 
 ```gradle
 repositories {
     mavenCentral()
-    maven {
-        url = uri("https://maven.pkg.github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
-        credentials {
-            username = System.getenv("GITHUB_ACTOR")    // your GitHub login
-            password = System.getenv("GITHUB_TOKEN")    // PAT with read:packages
-        }
-    }
+    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
 
 dependencies {
-    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.1-SNAPSHOT'
+    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.2-SNAPSHOT'
 }
 ```
 

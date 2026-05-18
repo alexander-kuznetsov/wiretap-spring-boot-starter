@@ -155,24 +155,10 @@ mavenPublishing {
     }
 }
 
-// Дополнительный сток для SNAPSHOT'ов — GitHub Packages.
-// Central Portal не принимает -SNAPSHOT в main repo, для них публикация остаётся в Packages.
-publishing {
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
-            credentials {
-                username = providers.gradleProperty("gpr.user")
-                    .orElse(providers.environmentVariable("GITHUB_ACTOR"))
-                    .getOrElse("")
-                password = providers.gradleProperty("gpr.token")
-                    .orElse(providers.environmentVariable("GITHUB_TOKEN"))
-                    .getOrElse("")
-            }
-        }
-    }
-}
+// Snapshot publishing handled by the same vanniktech plugin: when version
+// ends with -SNAPSHOT, publishToMavenCentral targets the Central snapshots
+// repository (https://central.sonatype.com/repository/maven-snapshots/),
+// readable by anyone without credentials.
 
 /**
  * Maps Spring Boot major.minor → compatible logback-access-spring-boot-starter version.
