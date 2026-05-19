@@ -851,8 +851,8 @@ public class KafkaConfig {
 
     private final List<ProducerListener<Object, Object>> producerListeners;
 
-    public KafkaConfig(ObjectProvider<ProducerListener<Object, Object>> producerListeners) {
-        this.producerListeners = producerListeners.orderedStream().toList();
+    public KafkaConfig(List<ProducerListener<Object, Object>> producerListeners) {
+        this.producerListeners = producerListeners;
     }
 
     @Bean("pciDssKafkaTemplate")
@@ -885,9 +885,9 @@ public class KafkaConfig {
     private final List<ContainerCustomizer<Object, Object,
             ConcurrentMessageListenerContainer<Object, Object>>> customizers;
 
-    public KafkaConfig(ObjectProvider<ContainerCustomizer<Object, Object,
+    public KafkaConfig(List<ContainerCustomizer<Object, Object,
             ConcurrentMessageListenerContainer<Object, Object>>> customizers) {
-        this.customizers = customizers.orderedStream().toList();
+        this.customizers = customizers;
     }
 
     @Bean
