@@ -28,6 +28,17 @@ import java.io.IOException;
  *     }
  * }
  * </pre>
+ *
+ * <h3>Watch out for the logback-access "missing" marker</h3>
+ * {@link IAccessEvent#getRequestHeader(String)} follows the Apache
+ * access-log convention and returns the literal string {@code "-"} when
+ * the header is absent, not {@code null}. A naive
+ * {@code return event.getRequestHeader("...")} will therefore emit
+ * {@code "field": "-"} on every request that didn't send the header,
+ * which looks like the provider broke even though it ran. Either go
+ * through {@link IAccessEvent#getRequestHeaderMap()} (returns
+ * {@code null} for missing keys), or normalize {@code "-"} to
+ * {@code null} yourself in {@link #value(IAccessEvent)}.
  */
 public interface WiretapAccessFieldProvider {
 
