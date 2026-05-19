@@ -6,6 +6,20 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-18
+
+### Fixed
+- IDE auto-completion for `wiretap.*` properties. The bundled
+  `additional-spring-configuration-metadata.json` (≈190 hand-written
+  entries — enum-keyed visibility flags, Kafka and `specific-topic-settings`,
+  `wiretap.message-masking`, `wiretap.web-client-interceptor.enabled`,
+  etc.) was not merged into the final metadata because Gradle's
+  `processResources` runs after `compileJava` by default, so the
+  Spring Boot configuration-processor saw an empty `build/resources/main`
+  during annotation processing. Forcing
+  `compileJava.dependsOn(processResources)` restores the merge —
+  the published jar now ships the complete property metadata.
+
 ## [0.1.3] - 2026-05-18
 
 ### Added

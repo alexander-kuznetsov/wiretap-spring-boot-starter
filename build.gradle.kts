@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "io.github.alexander-kuznetsov"
-version = "0.1.4-SNAPSHOT"
+version = "0.1.4"
 
 // ---------------------------------------------------------------------------
 // Version matrix knobs. Override via -PspringBootVersion=... / -PjavaToolchain=21
@@ -108,6 +108,16 @@ tasks.test {
     useJUnitPlatform()
     // Byte Buddy / Mockito do not officially support Java 25 yet; opt into experimental support.
     systemProperty("net.bytebuddy.experimental", "true")
+}
+
+// spring-boot-configuration-processor merges
+// META-INF/additional-spring-configuration-metadata.json into the final
+// META-INF/spring-configuration-metadata.json. It looks for the file in
+// build/resources/main/, which Gradle populates via processResources —
+// a task that by default runs after compileJava, so the processor sees
+// an empty directory and the merge silently no-ops. Force ordering.
+tasks.named<JavaCompile>("compileJava") {
+    dependsOn(tasks.named("processResources"))
 }
 
 // JaCoCo coverage will be added once a release supports Java 25 class files
