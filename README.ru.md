@@ -949,6 +949,37 @@ propagation всё равно даёт скоррелированный consumer
 `trace_id`, но обычные `log.info` внутри listener'а останутся без
 трейса — обычно нужно включить оба.
 
+### Fire-and-forget и edge cases
+
+`KafkaTemplate.send(...)` всегда асинхронный — возвращает
+`CompletableFuture<SendResult<K, V>>`. «Fire-and-forget» на стороне
+приложения (выбросить future, не звать `.get()`) **никак не влияет**
+на wiretap-лог: `ProducerListener` подключён внутри template'а, и
+`Callback`, который Spring Kafka регистрирует в
+`KafkaProducer.send(...)`, срабатывает вне зависимости от того, что
+прикладной код делает с future.
+
+| Сценарий | Поведение wiretap'а |
+|---|---|
+| Broker подтвердил ack | `INFO Sent outgoing kafka message {topic}` + `status=SUCCESS` |
+| Timeout / retry exhausted / broker отклонил | `WARN Failed to send outgoing kafka message {topic}` + `status=ERROR` + `error_class` / `error_message` |
+| `KafkaProducer.close()` с pending-записями | Каждая pending-запись получает `ProducerFencedException` (или подобное) → `WARN` строка на каждую. |
+| `max.block.ms` истёк прямо в `send()` (producer buffer переполнен) | `send` бросает **синхронно**, запись не попала в очередь producer'а. Callback не вызывается, лога нет. Exception улетает в caller — оберни fire-and-forget send в `try / catch` либо добавь `.whenComplete(...)` на future, если такие случаи хочется логировать самому. |
+| JVM crash посреди send'а | Лога не будет — это никаким механизмом не лечится. |
+| Прямой `KafkaProducer.send(...)` мимо `KafkaTemplate` | wiretap не увидит — auto-registration на template'е, не на raw producer'е. |
+
+### Замечание про producer-IO thread
+
+`onSuccess` / `onError` callback'и приходят на producer-IO thread'е
+(`kafka-producer-network-thread | …`), а не на caller'е send'а. MDC
+на этом thread'е по умолчанию пуст — `trace_id` всё-таки попадает в
+`kafka_info OUTGOING`, потому что Spring Kafka observation
+пробрасывает контекст через Micrometer Context Propagation
+(автоматически конфигурируется Spring Boot'ом). Если propagation
+явно отключён или версия Spring Boot слишком старая, producer-side
+`kafka_info` может уйти без `trace_id`. Consumer-side это не
+затрагивает — там observation-span открывается локально.
+
 ## Трассировка
 
 Wiretap читает `trace_id` и `span_id` из активного контекста Micrometer Tracing

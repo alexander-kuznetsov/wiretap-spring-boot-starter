@@ -947,6 +947,38 @@ listener observation off altogether, wiretap falls back to extracting
 `b3` / `traceparent` from record headers directly, so a producer that
 does propagate still produces a correlated consumer log.
 
+### Fire-and-forget and edge cases
+
+`KafkaTemplate.send(...)` is always asynchronous — it returns
+`CompletableFuture<SendResult<K, V>>`. «Fire-and-forget» on the caller
+side (dropping the future) does **not** affect wiretap logging:
+`ProducerListener` is attached inside the template, and the
+`Callback` Spring Kafka registers with `KafkaProducer.send(...)` fires
+regardless of what the application does with the returned future.
+
+Scenarios:
+
+| Situation | wiretap behaviour |
+|---|---|
+| Broker ack OK | `INFO Sent outgoing kafka message {topic}` + `status=SUCCESS` |
+| Timeout / retry exhausted / broker rejected | `WARN Failed to send outgoing kafka message {topic}` + `status=ERROR` + `error_class` / `error_message` |
+| `KafkaProducer.close()` with pending records | Each pending record gets a `ProducerFencedException` (or similar) → `WARN` line per record |
+| `max.block.ms` elapses inside `send()` (producer buffer full) | `send` throws **synchronously** before the record reaches the producer's queue. No callback fires, so no `kafka_info` line. The exception propagates to the caller — wrap fire-and-forget sends in `try / catch` if you want to log these yourself, or attach a `.whenComplete(...)` to the future. |
+| JVM crash mid-send | No log line — no mechanism can recover this. |
+| Direct `KafkaProducer.send(...)` bypassing `KafkaTemplate` | wiretap doesn't see it — auto-registration is on the template, not on the raw producer. |
+
+### A note about the producer-side thread
+
+`onSuccess` / `onError` callbacks run on the producer-IO thread
+(`kafka-producer-network-thread | …`), not on the caller of `send()`.
+MDC on that thread is empty by default — `trace_id` ends up in
+`kafka_info OUTGOING` because Spring Kafka observation propagates the
+context through Micrometer Context Propagation, which Spring Boot
+configures automatically. If you disable that propagation explicitly
+or run a Spring Boot version without it, producer-side `kafka_info`
+may end up without `trace_id`. Consumer-side is unaffected — the
+listener observation span is opened locally there.
+
 ## Tracing
 
 Wiretap reads `trace_id` and `span_id` from the active Micrometer Tracing context
