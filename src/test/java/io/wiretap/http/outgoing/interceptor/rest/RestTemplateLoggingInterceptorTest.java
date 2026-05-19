@@ -129,6 +129,33 @@ class RestTemplateLoggingInterceptorTest {
         assertThat(reqHeaders.get("Content-Type").asText()).contains("application/json");
     }
 
+    @Test
+    void wildcardResponseHeaders_logEveryHeaderFromResponse() throws Exception {
+        wireMock.stubFor(get(urlPathEqualTo("/items/42"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withHeader("X-Trace", "abc-123")
+                        .withHeader("X-Tenant", "acme")
+                        .withBody("{}")));
+
+        RestTemplateLogMessageSettings settings = new RestTemplateLogMessageSettings();
+        settings.setResponseHeaders(java.util.List.of("*"));
+        RestTemplateLoggingInterceptor interceptor = new RestTemplateLoggingInterceptor(
+                settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
+        RestTemplate restTemplate = new RestTemplate();
+        restTemplate.getInterceptors().add(interceptor);
+
+        restTemplate.getForObject(wireMock.baseUrl() + "/items/42", String.class);
+
+        JsonNode logged = capturedHttpInfoJson();
+        JsonNode respHeaders = logged.get("response_headers");
+        assertThat(respHeaders).isNotNull();
+        assertThat(respHeaders.has("Content-Type")).isTrue();
+        assertThat(respHeaders.has("X-Trace")).isTrue();
+        assertThat(respHeaders.has("X-Tenant")).isTrue();
+        assertThat(respHeaders.get("X-Trace").asText()).isEqualTo("abc-123");
+    }
+
     private RestTemplate templateWith(HttpAccessFieldNames fieldNames) {
         RestTemplateLogMessageSettings settings = new RestTemplateLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);

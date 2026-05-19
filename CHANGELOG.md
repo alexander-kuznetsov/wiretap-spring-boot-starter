@@ -6,6 +6,19 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+### Added
+- `*` wildcard in header allow-lists. A single `*` element in
+  `request-headers`, `response-headers` (every HTTP source, including
+  SOAP `MimeHeaders` and the underlying transport headers), or the
+  Kafka `headers` list makes wiretap log every header from the source.
+  Works in both common settings and per-URL / per-topic overrides;
+  other elements in the list are ignored when `*` is present (match
+  is case-insensitive). Does **not** apply to
+  `wiretap.headers.forward-to-mdc` — that list stays explicit by
+  design. No built-in blacklist for sensitive headers — register a
+  `KafkaHeaderMaskingHandler` or configure `wiretap.message-masking`
+  if you turn `*` on.
+
 ## [0.1.4] - 2026-05-18
 
 ### Fixed

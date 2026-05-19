@@ -362,6 +362,48 @@ wiretap:
 Available toggles: `REQUEST_URL`, `REQUEST_HEADERS`, `REQUEST_PARAMS`,
 `REQUEST_BODY`, `RESPONSE_HEADERS`, `RESPONSE_BODY`.
 
+### Header capture and the `*` wildcard
+
+Each HTTP source has a pair of explicit allow-lists — `request-headers` and
+`response-headers` — and Kafka has a single `headers` list. Only headers
+named in these lists make it into the log payload. Defaults are intentionally
+small (`Content-Type` and `X-Forwarded-For` for HTTP, `x-trace-id` and
+`x-request-id` for Kafka), because most production traffic carries
+sensitive material such as `Authorization` or `Cookie` that should not
+end up in logs by accident.
+
+If you don't know the full set of headers in advance — common during early
+development, debugging or when an upstream proxy injects unknown
+correlation fields — use the wildcard:
+
+```yaml
+wiretap:
+  rest-controllers:
+    request-headers: ['*']        # log every inbound request header
+  web-client-interceptor:
+    response-headers: ['*']       # log every header WebClient receives back
+  kafka-producer-interceptor:
+    headers: ['*']                # log every record header sent
+```
+
+The wildcard works in `request-headers`, `response-headers` (for all HTTP
+sources, inbound and outbound, including SOAP `MimeHeaders` plus the
+underlying transport headers) and the Kafka `headers` list, including
+per-URL `specific-http-info-settings` and per-topic
+`specific-topic-settings` overrides. When `*` is present in the list, the
+rest of the elements are ignored (the match is case-insensitive on the
+literal asterisk). It does **not** apply to
+`wiretap.headers.forward-to-mdc` — that list stays explicit by design,
+because pushing arbitrary headers into MDC would inflate every log line
+and risk leaking values into downstream systems.
+
+Wildcard captures headers verbatim — wiretap does **not** strip
+`Authorization`, `Cookie`, or any other sensitive header for you. For
+Kafka, register a `KafkaHeaderMaskingHandler` to scrub header values.
+For HTTP, configure `wiretap.message-masking` or scrub at the appender
+level. Don't turn `*` on for inbound traffic without a plan for those
+two headers.
+
 ### Body limits and masking
 
 ```yaml

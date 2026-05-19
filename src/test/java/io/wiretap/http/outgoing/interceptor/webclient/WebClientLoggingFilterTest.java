@@ -251,6 +251,33 @@ class WebClientLoggingFilterTest {
         assertThat(requestBody.length()).isLessThan(big.length());
     }
 
+    @Test
+    void wildcardResponseHeaders_logEveryHeaderFromResponse() throws Exception {
+        wireMock.stubFor(get(urlPathEqualTo("/items/3"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withHeader("X-Trace", "abc-123")
+                        .withHeader("X-Tenant", "acme")
+                        .withBody("{}")));
+
+        WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
+        settings.setResponseHeaders(java.util.List.of("*"));
+        WebClientLoggingFilter filter = new WebClientLoggingFilter(settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
+        WebClient client = WebClient.builder().filter(filter).build();
+
+        client.get().uri(wireMock.baseUrl() + "/items/3")
+                .retrieve().bodyToMono(String.class).block();
+
+        JsonNode logged = capturedHttpInfoJson();
+        JsonNode responseHeaders = logged.get("response_headers");
+        assertThat(responseHeaders).isNotNull();
+        assertThat(responseHeaders.has("Content-Type")).isTrue();
+        assertThat(responseHeaders.has("X-Trace")).isTrue();
+        assertThat(responseHeaders.has("X-Tenant")).isTrue();
+        assertThat(responseHeaders.get("X-Trace").asText()).isEqualTo("abc-123");
+    }
+
     private WebClient clientWith(HttpAccessFieldNames fieldNames) {
         WebClientLogMessageSettings settings = new WebClientLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);

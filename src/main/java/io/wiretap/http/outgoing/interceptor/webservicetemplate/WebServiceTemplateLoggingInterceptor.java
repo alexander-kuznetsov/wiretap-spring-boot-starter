@@ -2,7 +2,6 @@ package io.wiretap.http.outgoing.interceptor.webservicetemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.xml.soap.MimeHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -26,6 +25,7 @@ import io.wiretap.http.message.settings.WebServiceTemplateLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
+import io.wiretap.util.HeaderSelector;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
@@ -37,12 +37,10 @@ import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
-import static java.util.stream.Collectors.toMap;
 import static io.wiretap.http.message.HttpMessageInfo.RequestDirection.OUTGOING;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_BODY;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_HEADERS;
@@ -205,27 +203,13 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
 
     private Supplier<Map<String, String>> getHeadersSupplier(final Collection<String> neededHeaderNames, final WebServiceMessage webServiceMessage, HttpHeaders allHttpHeaders) {
         return () -> {
-            final Map<String, String> headers = new HashMap<>();
-            if (webServiceMessage instanceof SaajSoapMessage) {
-                MimeHeaders allHeaders = ((SaajSoapMessage) webServiceMessage).getSaajMessage().getMimeHeaders();
-                Map<String, String> soapHeadersMap = neededHeaderNames.stream()
-                        .filter(headerName -> allHeaders.getHeader(headerName) != null)
-                        .collect(toMap(
-                                Function.identity(),
-                                headerName -> String.join(";", allHeaders.getHeader(headerName))
-                        ));
-                headers.putAll(soapHeadersMap);
+            final Map<String, String> headers = new LinkedHashMap<>();
+            if (webServiceMessage instanceof SaajSoapMessage saaj) {
+                headers.putAll(HeaderSelector.selectMime(neededHeaderNames, saaj.getSaajMessage().getMimeHeaders()));
             }
             if (allHttpHeaders != null) {
-                Map<String, String> httpHeadersMap = neededHeaderNames.stream()
-                        .filter(headerName -> allHttpHeaders.get(headerName) != null)
-                        .collect(toMap(
-                                Function.identity(),
-                                headerName -> String.join(";", allHttpHeaders.get(headerName))
-                        ));
-                headers.putAll(httpHeadersMap);
+                headers.putAll(HeaderSelector.select(neededHeaderNames, allHttpHeaders));
             }
-
             return headers.isEmpty() ? null : headers;
         };
     }

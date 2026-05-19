@@ -359,6 +359,48 @@ wiretap:
 Доступные флаги: `REQUEST_URL`, `REQUEST_HEADERS`, `REQUEST_PARAMS`,
 `REQUEST_BODY`, `RESPONSE_HEADERS`, `RESPONSE_BODY`.
 
+### Захват хедеров и wildcard `*`
+
+Для каждого HTTP-источника есть пара явных allow-листов —
+`request-headers` и `response-headers`, для Kafka — общий список
+`headers`. В лог попадают только хедеры, перечисленные в этих
+списках. Дефолты намеренно короткие (`Content-Type` и
+`X-Forwarded-For` для HTTP, `x-trace-id` и `x-request-id` для Kafka),
+потому что трафик в проде часто несёт чувствительные значения вроде
+`Authorization` или `Cookie`, которые не должны попадать в логи
+случайно.
+
+Если полный набор хедеров заранее неизвестен — это бывает на старте
+проекта, при отладке или когда апстрим-прокси добавляет произвольные
+correlation-поля — используйте wildcard:
+
+```yaml
+wiretap:
+  rest-controllers:
+    request-headers: ['*']        # логировать все хедеры входящих запросов
+  web-client-interceptor:
+    response-headers: ['*']       # логировать все хедеры ответов WebClient
+  kafka-producer-interceptor:
+    headers: ['*']                # логировать все хедеры отправленных записей
+```
+
+Wildcard поддерживается в `request-headers`, `response-headers` (для
+всех HTTP-источников, входящих и исходящих, включая SOAP `MimeHeaders`
+плюс соответствующие HTTP-хедеры транспорта) и в Kafka `headers`,
+включая per-URL `specific-http-info-settings` и per-topic
+`specific-topic-settings` overrides. Если в списке есть `*`, остальные
+элементы игнорируются (сравнение со звёздочкой регистронезависимое).
+Wildcard **не** применяется к `wiretap.headers.forward-to-mdc` — этот
+список остаётся явным намеренно, иначе произвольные хедеры раздули
+бы каждую строку лога и могли утечь в downstream через MDC-проброс.
+
+Wildcard захватывает значения хедеров как есть — wiretap **не**
+вырезает `Authorization`, `Cookie` или другие чувствительные хедеры
+сам. Для Kafka зарегистрируйте `KafkaHeaderMaskingHandler` для
+маскирования значений. Для HTTP — настройте `wiretap.message-masking`
+или скрабьте на уровне аппендера. Не включайте `*` на входящем
+трафике без плана на эти два хедера.
+
 ### Ограничение размера тела и маскирование
 
 ```yaml

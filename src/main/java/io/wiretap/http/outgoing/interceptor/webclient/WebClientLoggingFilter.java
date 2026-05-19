@@ -15,6 +15,7 @@ import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.message.settings.body.HttpBodySettings;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
+import io.wiretap.util.HeaderSelector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -39,7 +40,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static io.wiretap.http.message.HttpMessageInfo.RequestDirection.OUTGOING;
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_BODY;
@@ -369,8 +369,6 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
 
     private Supplier<Map<String, String>> headersSupplier(
             java.util.Collection<String> needed, Map<String, String> all) {
-        return () -> needed.stream()
-                .filter(all::containsKey)
-                .collect(toMap(Function.identity(), all::get));
+        return () -> HeaderSelector.select(needed, all);
     }
 }

@@ -133,6 +133,29 @@ class WiretapProducerInterceptorTest {
     }
 
     @Test
+    void wildcardHeaders_logEveryRecordHeader() throws Exception {
+        KafkaProducerLogMessageSettings settings = new KafkaProducerLogMessageSettings();
+        settings.setHeaders(List.of("*"));
+        wireSink(settings, null);
+
+        ProducerRecord<String, String> record = new ProducerRecord<>(
+                "orders.events", null, "k", "v");
+        record.headers().add("x-trace-id", "trace-1".getBytes());
+        record.headers().add("x-tenant", "acme".getBytes());
+        record.headers().add("x-debug", "true".getBytes());
+        interceptor.onSend(record);
+
+        Map<String, Object> payload = MAPPER.readValue(
+                appender.list.get(0).getMDCPropertyMap().get(KafkaLogSink.MDC_KEY), MAP_TYPE);
+        @SuppressWarnings("unchecked")
+        Map<String, String> headers = (Map<String, String>) payload.get("headers");
+        assertThat(headers)
+                .containsEntry("x-trace-id", "trace-1")
+                .containsEntry("x-tenant", "acme")
+                .containsEntry("x-debug", "true");
+    }
+
+    @Test
     void valueMasking_appliesPerHandler() throws Exception {
         KafkaProducerLogMessageSettings settings = new KafkaProducerLogMessageSettings();
         settings.getMessageBodySettings().setEnableValueMasking(true);

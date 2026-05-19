@@ -27,6 +27,7 @@ import io.wiretap.http.message.settings.RestLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
+import io.wiretap.util.HeaderSelector;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +35,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
@@ -281,14 +281,8 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
         });
     }
 
-    @SuppressWarnings("ConstantConditions")
     private Supplier<Map<String, String>> getHeadersSupplier(final Collection<String> neededHeaderNames, final HttpHeaders allHeaders) {
-        return () -> neededHeaderNames.stream()
-                .filter(headerName -> allHeaders.get(headerName) != null)
-                .collect(toMap(
-                        Function.identity(),
-                        headerName -> String.join(";", allHeaders.get(headerName))
-                ));
+        return () -> HeaderSelector.select(neededHeaderNames, allHeaders);
     }
 
     private Supplier<Map<String, List<String>>> getRequestParamsSupplier(final HttpRequest httpRequest) {

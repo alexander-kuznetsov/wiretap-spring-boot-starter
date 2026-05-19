@@ -10,13 +10,12 @@ import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings;
 import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings.KafkaConfigurableField;
 import io.wiretap.kafka.message.settings.body.MessageBodySettings;
 import io.wiretap.util.FieldVisibilityMap;
+import io.wiretap.util.HeaderSelector;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.MDC;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -173,14 +172,8 @@ public class KafkaLogSink {
     /** Helper for interceptors: collect configured headers from a Kafka {@link Headers} bag. */
     public Map<String, String> collectHeaders(Headers headers) {
         if (headers == null) return null;
-        Map<String, String> out = new LinkedHashMap<>();
-        for (String name : settings.getHeaders()) {
-            Header header = headers.lastHeader(name);
-            if (header != null && header.value() != null) {
-                out.put(name, new String(header.value(), StandardCharsets.UTF_8));
-            }
-        }
-        return out;
+        Map<String, String> out = HeaderSelector.selectKafka(settings.getHeaders(), headers);
+        return out.isEmpty() ? null : out;
     }
 
     public static String formatTimestamp(long epochMillis) {

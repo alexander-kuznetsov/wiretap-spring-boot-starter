@@ -22,13 +22,13 @@ import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
+import io.wiretap.util.HeaderSelector;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigurableField.REQUEST_BODY;
@@ -202,9 +202,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     }
 
     private Supplier<Map<String, String>> getHeadersSupplier(Collection<String> neededHeaderNames, Map<String, String> allHeaders) {
-        return () -> neededHeaderNames.stream()
-                .filter(headerName -> allHeaders.get(headerName) != null)
-                .collect(Collectors.toMap(Function.identity(), allHeaders::get));
+        return () -> HeaderSelector.select(neededHeaderNames, allHeaders);
     }
 
     private Supplier<Map<String, List<String>>> getRequestParamsSupplier(Map<String, String[]> requestParamsMap) {

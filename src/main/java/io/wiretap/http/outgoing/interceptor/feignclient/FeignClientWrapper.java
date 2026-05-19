@@ -27,6 +27,7 @@ import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
 import io.wiretap.util.FieldVisibilityMap;
+import io.wiretap.util.HeaderSelector;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,7 +36,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
@@ -206,14 +206,8 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
         }
     }
 
-    @SuppressWarnings("ConstantConditions")
     private Supplier<Map<String, String>> getHeadersSupplier(final Collection<String> neededHeaderNames, Map<String, Collection<String>> headersMap) {
-        return () -> neededHeaderNames.stream()
-                .filter(headerName -> headersMap.get(headerName) != null)
-                .collect(toMap(
-                        Function.identity(),
-                        headerName -> String.join(";", headersMap.get(headerName))
-                ));
+        return () -> HeaderSelector.selectMulti(neededHeaderNames, headersMap);
     }
     private Supplier<Map<String, List<String>>> getRequestParamsSupplier(final Request httpRequest) {
         return () -> URLEncodedUtils.parse(httpRequest.url(), StandardCharsets.UTF_8).stream()
