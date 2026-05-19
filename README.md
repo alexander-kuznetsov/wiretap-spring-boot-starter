@@ -668,15 +668,26 @@ without further wiring.
 
 ### Consumer
 
-The consumer side is symmetric. Wiretap registers a Kafka
-`ConsumerInterceptor` via `DefaultKafkaConsumerFactoryCustomizer`. The
-hook is `org.apache.kafka.clients.consumer.ConsumerInterceptor.onConsume(...)`
-— it runs **after** the configured `Deserializer` has produced typed
-`key` / `value`, but **before** the records are returned to the
-application listener. That gives the same object representation the
-listener will see, while letting the log line precede any business
-processing (and any deserialization failures happen earlier and surface
-as broker-level errors, not as missing log entries).
+The consumer side is registered as a Spring Kafka
+`org.springframework.kafka.listener.RecordInterceptor` and attached to
+listener containers via Spring Boot's `ContainerCustomizer` bean
+collection. The hook is
+`RecordInterceptor.intercept(record, consumer)` — it runs **inside** the
+Spring Kafka listener observation span, after the configured
+`Deserializer` produced typed `key` / `value`, but **before** the
+`@KafkaListener` method is invoked. Two consequences flow from that:
+
+- The log line sees the same object representation the listener will see.
+- MDC carries `traceId` / `spanId` from Spring Kafka observation by the
+  time wiretap logs, so `kafka_info` correlates with the listener's own
+  logs without any header parsing — even when the upstream producer did
+  not propagate a trace (in that case observation opens a fresh root
+  span on the consumer side and wiretap picks it up).
+
+If listener observation is disabled
+(`spring.kafka.listener.observation-enabled=false`), wiretap still tries
+to extract a trace from `b3` / `traceparent` record headers as a fallback,
+so a producer that propagates will not silently lose its trace either way.
 
 ```json
 {
@@ -705,14 +716,50 @@ wiretap:
       - "__consumer_offsets"
 ```
 
-`onCommit` is not logged — commit-time activity is not interesting for
-an access log. The three masking SPIs (`KafkaValueMaskingHandler`,
+The three masking SPIs (`KafkaValueMaskingHandler`,
 `KafkaHeaderMaskingHandler`, `KafkaTopicMaskingHandler`) apply to the
 consumer side as well; registering a single bean covers both directions.
 
+#### Custom listener container factories
+
+The auto-configured `ConcurrentKafkaListenerContainerFactory` from
+Spring Boot picks up wiretap's `ContainerCustomizer` automatically.
+If you build a factory by hand (multi-cluster setups, per-tenant
+listeners), inject the wiretap customizer and apply it yourself:
+
+```java
+@Configuration
+public class KafkaConfig {
+
+    private final List<ContainerCustomizer<Object, Object,
+            ConcurrentMessageListenerContainer<Object, Object>>> customizers;
+
+    public KafkaConfig(ObjectProvider<ContainerCustomizer<Object, Object,
+            ConcurrentMessageListenerContainer<Object, Object>>> customizers) {
+        this.customizers = customizers.orderedStream().toList();
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> listenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        // ... your consumer factory, error handler, etc.
+        customizers.forEach(c -> factory.setContainerCustomizer(
+                (ContainerCustomizer) c));
+        return factory;
+    }
+}
+```
+
+`setContainerCustomizer` is a single-slot setter on the factory, so if
+your application already has its own `RecordInterceptor` (e.g. for
+retry-state cleanup), wrap both with
+`org.springframework.kafka.listener.CompositeRecordInterceptor` before
+setting.
+
 ### Distributed tracing across Kafka
 
-There are three actors involved, each owning one piece:
+Two actors are involved:
 
 1. **Producer-side propagation** — `KafkaTemplate.send` must inject the
    propagation header (`b3` or W3C `traceparent`, depending on
@@ -721,16 +768,13 @@ There are three actors involved, each owning one piece:
    it nothing crosses the wire, and the trace ends at the producer
    service.
 
-2. **Wiretap `kafka_info` line on the consumer** — wiretap reads the
-   propagation header in its `ConsumerInterceptor` and restores MDC
-   `traceId` / `spanId` for the duration of that single log line.
-   This works on its own and needs no Spring property — both B3 and
-   W3C formats are recognised.
-
-3. **Application logs inside the listener method** — for
-   `log.info(...)` written by your `@KafkaListener` to carry
-   `trace_id`, Spring has to restore MDC for the listener invocation.
-   That is what `spring.kafka.listener.observation-enabled=true` does.
+2. **Consumer-side MDC** — Spring Kafka's listener observation opens a
+   span around each record, picking up the parent from the propagation
+   header (or starting a fresh root span if the producer didn't
+   propagate). That span's `traceId` / `spanId` end up in MDC, which
+   wiretap inherits naturally because its `RecordInterceptor` runs
+   inside that span. The relevant property is
+   `spring.kafka.listener.observation-enabled=true`.
 
 So the practical recipe — both flags on:
 
@@ -743,9 +787,11 @@ spring:
       observation-enabled: true
 ```
 
-Only `template.observation-enabled=true` would still give a
-trace-aware `kafka_info` line on the consumer, but the listener's own
-log calls would stay un-traced — usually you want both.
+`kafka_info` carries `trace_id` even when only the listener flag is
+on (the trace will just be unrelated to the producer's). If you turn
+listener observation off altogether, wiretap falls back to extracting
+`b3` / `traceparent` from record headers directly, so a producer that
+does propagate still produces a correlated consumer log.
 
 ## Tracing
 

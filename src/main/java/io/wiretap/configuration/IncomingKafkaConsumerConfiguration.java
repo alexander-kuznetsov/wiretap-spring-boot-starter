@@ -1,7 +1,7 @@
 package io.wiretap.configuration;
 
 import io.wiretap.kafka.KafkaLogSink;
-import io.wiretap.kafka.consumer.WiretapConsumerInterceptor;
+import io.wiretap.kafka.consumer.WiretapRecordInterceptor;
 import io.wiretap.kafka.message.KafkaHeaderMaskingHandler;
 import io.wiretap.kafka.message.KafkaTopicMaskingHandler;
 import io.wiretap.kafka.message.KafkaValueMaskingHandler;
@@ -9,13 +9,16 @@ import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
 import io.wiretap.kafka.message.settings.KafkaConsumerLogMessageSettings;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.kafka.DefaultKafkaConsumerFactoryCustomizer;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.ContainerCustomizer;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
+import org.springframework.kafka.listener.RecordInterceptor;
 
 @Configuration
 @ConditionalOnClass({KafkaListenerEndpointRegistry.class, ConsumerConfig.class})
@@ -33,17 +36,32 @@ public class IncomingKafkaConsumerConfiguration {
             @Autowired(required = false) KafkaTopicMaskingHandler topicMaskingHandler
     ) {
         KafkaAccessFieldNames names = fieldNames.getKafka();
-        KafkaLogSink sink = new KafkaLogSink(settings, names,
+        return new KafkaLogSink(settings, names,
                 valueMaskingHandler, headerMaskingHandler, topicMaskingHandler);
-        WiretapConsumerInterceptor.setSink(sink);
-        return sink;
     }
 
     @Bean
-    public DefaultKafkaConsumerFactoryCustomizer wiretapConsumerInterceptorCustomizer() {
-        return factory -> factory.updateConfigs(java.util.Map.of(
-                ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG,
-                WiretapConsumerInterceptor.class.getName()
-        ));
+    public RecordInterceptor<Object, Object> wiretapRecordInterceptor(
+            @Qualifier("wiretapConsumerLogSink") KafkaLogSink consumerLogSink) {
+        return new WiretapRecordInterceptor<>(consumerLogSink);
+    }
+
+    /**
+     * Applied automatically to the Spring Boot auto-configured
+     * {@code ConcurrentKafkaListenerContainerFactory} via
+     * {@code factory.setContainerCustomizer(...)}. For manually constructed
+     * factories (multi-cluster setups, custom listeners), inject this
+     * customizer with {@code ObjectProvider} and call
+     * {@code factory.setContainerCustomizer(...)} explicitly — README has
+     * a snippet.
+     *
+     * <p>If the application already configures its own {@link RecordInterceptor}
+     * on a container (e.g. for retry-state cleanup), combine it with this one
+     * using {@link org.springframework.kafka.listener.CompositeRecordInterceptor}.
+     */
+    @Bean
+    public ContainerCustomizer<Object, Object, ConcurrentMessageListenerContainer<Object, Object>>
+            wiretapListenerContainerCustomizer(RecordInterceptor<Object, Object> wiretapRecordInterceptor) {
+        return container -> container.setRecordInterceptor(wiretapRecordInterceptor);
     }
 }

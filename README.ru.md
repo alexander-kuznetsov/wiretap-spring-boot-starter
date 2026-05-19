@@ -667,15 +667,27 @@ wiretap:
 
 ### Консьюмер
 
-Сторона потребителя симметрична. Wiretap регистрирует
-`ConsumerInterceptor` через `DefaultKafkaConsumerFactoryCustomizer`.
-Точка перехвата —
-`org.apache.kafka.clients.consumer.ConsumerInterceptor.onConsume(...)`,
-вызывается **после** десериализатора (key/value уже типизированы), но
-**до** того, как записи дойдут до listener'а. То есть в логе мы видим
-ровно то, что увидит бизнес-обработчик, а ошибки десериализации
-произойдут раньше и проявятся не как пропавшие лог-записи, а как
-ошибки на уровне брокера.
+Сторона потребителя зарегистрирована как Spring Kafka
+`org.springframework.kafka.listener.RecordInterceptor` и прикреплена к
+listener-контейнерам через bean-коллекцию `ContainerCustomizer`'ов в
+Spring Boot. Точка перехвата —
+`RecordInterceptor.intercept(record, consumer)`, вызывается **внутри**
+observation-спана listener'а Spring Kafka, после того как
+десериализатор уже преобразовал ключ/значение, но **до** вызова
+`@KafkaListener`-метода. Отсюда два следствия:
+
+- В логе мы видим тот же объектный вид, что и листенер.
+- MDC к моменту работы wiretap'а уже содержит `traceId` / `spanId` от
+  Spring Kafka observation — `kafka_info` сразу коррелирует с
+  собственными логами листенера, без парсинга заголовков. Это работает
+  и тогда, когда producer не пропагирует трейс — observation в таком
+  случае открывает новый root-span на стороне consumer'а, и wiretap
+  подбирает его автоматически.
+
+Если listener observation выключен
+(`spring.kafka.listener.observation-enabled=false`), wiretap fallback'ом
+читает `b3` / `traceparent` из record-headers — propagation от
+producer'а с observation не теряется.
 
 ```json
 {
@@ -704,14 +716,50 @@ wiretap:
       - "__consumer_offsets"
 ```
 
-`onCommit` не логируется — коммит offset'ов не интересен для access-лога.
 Три масккинг-SPI (`KafkaValueMaskingHandler`, `KafkaHeaderMaskingHandler`,
 `KafkaTopicMaskingHandler`) работают и на стороне consumer'а; один бин
 покрывает обе стороны.
 
+#### Кастомные listener-container-factories
+
+Auto-configured `ConcurrentKafkaListenerContainerFactory` от Spring Boot
+подхватывает wiretap'овский `ContainerCustomizer` сам. Если ты собираешь
+factory вручную (multi-cluster, per-tenant listener'ы), инжектируй
+wiretap-customizer и применяй сам:
+
+```java
+@Configuration
+public class KafkaConfig {
+
+    private final List<ContainerCustomizer<Object, Object,
+            ConcurrentMessageListenerContainer<Object, Object>>> customizers;
+
+    public KafkaConfig(ObjectProvider<ContainerCustomizer<Object, Object,
+            ConcurrentMessageListenerContainer<Object, Object>>> customizers) {
+        this.customizers = customizers.orderedStream().toList();
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> listenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        // ... consumer factory, error handler и т.д.
+        customizers.forEach(c -> factory.setContainerCustomizer(
+                (ContainerCustomizer) c));
+        return factory;
+    }
+}
+```
+
+`setContainerCustomizer` на factory — single-slot setter, поэтому если в
+приложении уже есть свой `RecordInterceptor` (например, для retry-state
+cleanup), оберни оба в
+`org.springframework.kafka.listener.CompositeRecordInterceptor`
+перед `setRecordInterceptor`.
+
 ### Распределённая трассировка через Kafka
 
-В цепочке три участника, каждый отвечает за свой шаг:
+В цепочке два участника:
 
 1. **Пропагация на стороне producer'а** — `KafkaTemplate.send` должен
    вставить заголовок пропагации (`b3` или W3C `traceparent`,
@@ -720,15 +768,12 @@ wiretap:
    ничего не уходит на проводе, и трейс обрывается на сервисе-
    отправителе.
 
-2. **Строка `kafka_info` в consumer-логе wiretap'а** — wiretap читает
-   заголовок пропагации внутри своего `ConsumerInterceptor` и
-   восстанавливает MDC `traceId` / `spanId` только на время этой
-   единственной log-строки. Работает само по себе, никакого Spring-
-   свойства не требует, распознаются и B3, и W3C-форматы.
-
-3. **Прикладные логи внутри listener-метода** — чтобы
-   `log.info(...)` из `@KafkaListener` содержал `trace_id`, Spring
-   должен восстановить MDC на время вызова listener'а. Это делает
+2. **MDC на стороне consumer'а** — observation listener'а Spring Kafka
+   открывает span вокруг каждой записи, берёт parent из propagation-
+   заголовка (или открывает новый root span, если producer не
+   пропагирует). Этот span кладёт `traceId` / `spanId` в MDC, а
+   wiretap унаследует их естественно — наш `RecordInterceptor`
+   вызывается внутри этого span'а. Свойство —
    `spring.kafka.listener.observation-enabled=true`.
 
 Практический рецепт — включить оба:
@@ -741,6 +786,12 @@ spring:
     listener:
       observation-enabled: true
 ```
+
+`kafka_info` будет содержать `trace_id` даже когда включён только
+listener flag (трейс просто не связан с producer'ом). Если listener
+observation выключить совсем, wiretap fallback'ом извлекает
+`b3` / `traceparent` напрямую из record-headers, так что producer с
+propagation всё равно даёт скоррелированный consumer-лог.
 
 Если оставить только `template.observation-enabled=true`,
 `kafka_info`-строка wiretap'а на consumer'е всё равно получит
