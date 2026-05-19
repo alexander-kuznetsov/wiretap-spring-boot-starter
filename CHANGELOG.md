@@ -4,7 +4,7 @@ All notable changes are recorded here.
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html);
 versions before `1.0.0` are pre-release and the public API may change between minors.
 
-## [Unreleased]
+## [0.1.6] - 2026-05-19
 
 ### Changed
 - Kafka logs are emitted once per message, after the operation completes.
