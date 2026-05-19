@@ -595,38 +595,66 @@ streaming workloads, enable `async-logging` and double-check that
 
 ## Kafka logging
 
-When `spring-kafka` is on the classpath, Wiretap auto-registers a Kafka
-`ProducerInterceptor` that captures every produced record. The hook is
-`org.apache.kafka.clients.producer.ProducerInterceptor.onSend(...)` — it runs
-**before** the configured `Serializer` touches the payload, so the log line
-holds the typed `key` / `value` exactly as the application produced them, not
-the on-the-wire bytes:
+When `spring-kafka` is on the classpath, Wiretap emits exactly one
+JSON log line per Kafka message on each side of the pipe — producer
+and consumer — both carrying a uniform `kafka_info` block with full
+record snapshot, `status` (`SUCCESS` / `ERROR`), and the outcome of
+the operation.
+
+### Producer
+
+Producer-side logs come from a Spring Kafka
+`org.springframework.kafka.support.ProducerListener`. The hook fires
+**after** the broker has acknowledged (or rejected) the send, so the
+single log line carries both the typed pre-serialization snapshot
+(`key`, `value`, headers as the application produced them) and the
+broker-side coordinates (`partition`, `offset`):
 
 ```json
 {
   "@timestamp": "...",
   "level": "INFO",
   "logger": "io.wiretap.kafka.KafkaLogSink",
-  "message": "Captured outgoing kafka message orders.events",
+  "message": "Sent outgoing kafka message orders.events",
   "kafka_info": {
     "direction": "OUTGOING",
     "topic": "orders.events",
-    "partition": null,
-    "client_id": "checkout-api-producer-1",
+    "partition": 3,
+    "offset": 18472,
     "key": "ord-42",
     "key_length": 6,
     "value": "{\"orderId\":\"ord-42\",\"amount\":100}",
     "value_length": 33,
-    "headers": { "x-trace-id": "0123456789abcdef" }
+    "headers": { "x-trace-id": "0123456789abcdef", "b3": "..." },
+    "timestamp": "2026-05-07T10:14:32.918Z",
+    "status": "SUCCESS"
   }
 }
 ```
 
-Broker-side fields (`partition`, `offset`, `duration`) are not known at the
-pre-serialization point. A second log line is emitted from
-`onAcknowledgement` **only on delivery failure** with `status=ERROR`,
-`error_class`, `error_message` and whatever metadata the broker returned.
-Successful acknowledgements are already covered by the `onSend` line.
+On a failed send the same line comes through at `WARN` with
+`status=ERROR` plus `error_class` and `error_message`:
+
+```json
+{
+  "level": "WARN",
+  "message": "Failed to send outgoing kafka message orders.events",
+  "kafka_info": {
+    "direction": "OUTGOING",
+    "topic": "orders.events",
+    "key": "ord-42",
+    "value": "{...}",
+    "status": "ERROR",
+    "error_class": "org.apache.kafka.common.errors.TimeoutException",
+    "error_message": "Expiring 1 record(s) for orders.events-3: 30000 ms has passed since batch creation"
+  }
+}
+```
+
+Spring Boot's auto-configured `KafkaTemplate` picks up the
+`ProducerListener` bean automatically through `ObjectProvider`.
+Manually constructed templates (multi-cluster setups) attach it
+explicitly — see «Custom KafkaTemplate» below.
 
 ```yaml
 wiretap:
@@ -660,37 +688,40 @@ Three opt-in masking SPIs are exposed; register a single Spring bean each:
 | `io.wiretap.kafka.message.KafkaHeaderMaskingHandler` | each header value |
 | `io.wiretap.kafka.message.KafkaTopicMaskingHandler` | topic name |
 
-The registration mechanism is the Spring Boot
-`DefaultKafkaProducerFactoryCustomizer` — Wiretap adds
-`interceptor.classes=io.wiretap.kafka.producer.WiretapProducerInterceptor`
-to the producer factory; you keep using `KafkaTemplate` / `@KafkaListener`
-without further wiring.
+The same SPIs apply to consumer-side logs as well — registering a
+single bean covers both directions.
 
 ### Consumer
 
-The consumer side is registered as a Spring Kafka
-`org.springframework.kafka.listener.RecordInterceptor` and attached to
-listener containers via Spring Boot's `ContainerCustomizer` bean
-collection. The hook is
-`RecordInterceptor.intercept(record, consumer)` — it runs **inside** the
-Spring Kafka listener observation span, after the configured
-`Deserializer` produced typed `key` / `value`, but **before** the
-`@KafkaListener` method is invoked. Two consequences flow from that:
+Consumer-side logs come from a Spring Kafka
+`org.springframework.kafka.listener.RecordInterceptor` attached to
+listener containers via Spring Boot's `ContainerCustomizer` SPI. The
+hook fires on `success(record, consumer)` / `failure(record, exception,
+consumer)` — **after** the `@KafkaListener` method has finished — so
+the single log line includes:
 
-- The log line sees the same object representation the listener will see.
-- MDC carries `traceId` / `spanId` from Spring Kafka observation by the
-  time wiretap logs, so `kafka_info` correlates with the listener's own
-  logs without any header parsing — even when the upstream producer did
-  not propagate a trace (in that case observation opens a fresh root
-  span on the consumer side and wiretap picks it up).
+- the typed pre-deserialization snapshot Kafka delivered,
+- `duration` of the listener invocation in milliseconds,
+- `status` (`SUCCESS` / `ERROR`), and on failure `error_class` /
+  `error_message`.
+
+Because the callback runs inside the Spring Kafka listener
+observation span, MDC already carries `traceId` / `spanId` by the time
+wiretap logs — `kafka_info` correlates with the listener's own log
+lines without any header parsing, even when the upstream producer did
+not propagate a trace (observation opens a fresh root span in that
+case and wiretap inherits it).
 
 If listener observation is disabled
-(`spring.kafka.listener.observation-enabled=false`), wiretap still tries
-to extract a trace from `b3` / `traceparent` record headers as a fallback,
-so a producer that propagates will not silently lose its trace either way.
+(`spring.kafka.listener.observation-enabled=false`), wiretap still
+tries to extract a trace from `b3` / `traceparent` record headers as a
+fallback, so a producer that propagates does not silently lose its
+trace either way.
 
 ```json
 {
+  "level": "INFO",
+  "message": "Processed incoming kafka message orders.events in 47ms",
   "kafka_info": {
     "direction": "INCOMING",
     "topic": "orders.events",
@@ -700,11 +731,40 @@ so a producer that propagates will not silently lose its trace either way.
     "group_id": "checkout-group",
     "key": "ord-42",
     "value": "{\"orderId\":\"ord-42\"}",
+    "headers": { "b3": "...", "x-trace-id": "abc" },
     "timestamp": "2026-05-07T10:14:32.918Z",
-    "timestamp_type": "CREATE_TIME"
+    "timestamp_type": "CREATE_TIME",
+    "duration": 47,
+    "status": "SUCCESS"
   }
 }
 ```
+
+On a listener exception the level becomes `WARN`:
+
+```json
+{
+  "level": "WARN",
+  "message": "Failed to process incoming kafka message orders.events after 350ms",
+  "kafka_info": {
+    "direction": "INCOMING",
+    "topic": "orders.events",
+    "partition": 3,
+    "offset": 18472,
+    "key": "ord-42",
+    "value": "{...}",
+    "duration": 350,
+    "status": "ERROR",
+    "error_class": "com.example.OrderValidationException",
+    "error_message": "amount must be positive"
+  }
+}
+```
+
+A listener that hangs past `max.poll.interval.ms` still produces a
+log line: Spring Kafka raises an exception that reaches `failure(...)`.
+The only sliver that can fall through is a JVM crash mid-processing,
+where no fallback would help.
 
 ```yaml
 wiretap:
@@ -716,9 +776,103 @@ wiretap:
       - "__consumer_offsets"
 ```
 
-The three masking SPIs (`KafkaValueMaskingHandler`,
-`KafkaHeaderMaskingHandler`, `KafkaTopicMaskingHandler`) apply to the
-consumer side as well; registering a single bean covers both directions.
+### kafka_info fields reference
+
+The same `kafka_info` schema covers both directions; some fields are
+filled only on one side or only in failure cases. All fields can be
+hidden via `visibility-settings` (enum keys correspond to the column
+names below).
+
+| Field | Type | Producer (OUTGOING) | Consumer (INCOMING) | Notes |
+|---|---|---|---|---|
+| `direction` | string | `OUTGOING` | `INCOMING` | Always present. |
+| `topic` | string | always | always | Source topic of the record. |
+| `partition` | int | broker-assigned on ack | always | Producer side: post-ack value from `RecordMetadata`. |
+| `offset` | long | broker-assigned on ack | always | Producer side: post-ack value. |
+| `client_id` | string | (omitted) | always | Producer side: not available from `ProducerListener` — Kafka exposes producer client-id only through JMX/Micrometer metrics. |
+| `group_id` | string | — | always | Consumer's `group.id`. |
+| `key` | string | always | always | `String.valueOf(key)` — typed value before serialization. |
+| `key_length` | long | always | always | Byte length of `key` (UTF-8 for strings, native for byte arrays). |
+| `value` | string | always | always | Same shape as `key` — typed pre-serialization value. |
+| `value_length` | long | always | always | Byte length of `value`. |
+| `headers` | object | configurable | configurable | Names in `wiretap.kafka-*-interceptor.headers` (use `['*']` to log them all). Values joined by `;` if multi-valued. |
+| `timestamp` | ISO-8601 string | conditional | always | See **«About `timestamp`»** below. |
+| `timestamp_type` | string | (typically omitted) | always | `CREATE_TIME` or `LOG_APPEND_TIME`. See below. |
+| `duration` | long (ms) | (omitted) | always | Consumer-side listener invocation time. Producer-side latency is covered by Kafka native metrics. |
+| `status` | enum | `SUCCESS` / `ERROR` | `SUCCESS` / `ERROR` | Outcome of the send / listener invocation. |
+| `error_class` | string | on failure | on failure | FQN of the exception. |
+| `error_message` | string | on failure | on failure | `exception.getMessage()`. |
+
+### About `timestamp` and `timestamp_type`
+
+This field is the most frequently misread, so it gets its own block.
+
+#### Where the value comes from
+
+**Producer (`OUTGOING`)**:
+- If the application explicitly built the record with a timestamp
+  (`new ProducerRecord<>(topic, partition, timestamp, key, value)`),
+  that value is logged.
+- Otherwise, if `RecordMetadata.hasTimestamp()` is true after the
+  broker ack, the broker-side timestamp is logged as a fallback.
+- Otherwise the field is omitted.
+- `timestamp_type` is **typically omitted** on producer-side; the
+  Kafka client does not expose it for outbound records.
+
+**Consumer (`INCOMING`)**:
+- Always `ConsumerRecord.timestamp()` — the value broker stored and
+  every consumer sees. Which clock that is — producer's send time
+  (`CREATE_TIME`) or broker's append time (`LOG_APPEND_TIME`) —
+  depends on the topic-level `message.timestamp.type` config. Default
+  in Kafka 3.x is `CreateTime`.
+- `timestamp_type` carries the discriminator (`CREATE_TIME` /
+  `LOG_APPEND_TIME`). `NO_TIMESTAMP_TYPE` is treated as «not set» and
+  the field is omitted.
+
+#### What it does **not** mean
+
+- The `OUTGOING` `timestamp` is **not** «when the broker wrote the
+  record». It is either an application-supplied timestamp or
+  best-effort broker-ack timestamp, and on a topic with
+  `message.timestamp.type=LogAppendTime` these can differ from the
+  broker's actual log-append moment.
+- The `INCOMING` `timestamp` is **not** «when the consumer received
+  the record». For end-to-end latency, compare it with `@timestamp`
+  of the `INCOMING` log line and treat the difference as «time spent
+  in the topic between broker write and consumer dispatch».
+
+#### Custom KafkaTemplate
+
+A manually constructed `KafkaTemplate` (multi-cluster setups,
+per-tenant templates) does not go through Spring Boot's
+KafkaAutoConfiguration. Inject the wiretap `ProducerListener` and
+attach it explicitly:
+
+```java
+@Configuration
+public class KafkaConfig {
+
+    private final List<ProducerListener<Object, Object>> producerListeners;
+
+    public KafkaConfig(ObjectProvider<ProducerListener<Object, Object>> producerListeners) {
+        this.producerListeners = producerListeners.orderedStream().toList();
+    }
+
+    @Bean("pciDssKafkaTemplate")
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public KafkaTemplate<String, String> pciDssKafkaTemplate(ProducerFactory<String, String> factory) {
+        KafkaTemplate<String, String> template = new KafkaTemplate<>(factory);
+        producerListeners.forEach(l -> template.setProducerListener((ProducerListener) l));
+        template.setObservationEnabled(true);   // for trace propagation through headers
+        return template;
+    }
+}
+```
+
+`setProducerListener` is a single-slot setter — if your application
+already has its own listener, wrap both with
+`org.springframework.kafka.support.CompositeProducerListener` before
+setting.
 
 #### Custom listener container factories
 

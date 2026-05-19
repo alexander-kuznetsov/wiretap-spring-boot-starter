@@ -85,15 +85,44 @@ public class KafkaLogSink {
             final String json = mapper.writeValueAsString(masked.toMap(fieldNames));
 
             try (MDC.MDCCloseable ignored = MDC.putCloseable(MDC_KEY, json)) {
-                String topic = masked.getTopic();
-                if (info.getDirection() == KafkaMessageInfo.Direction.OUTGOING) {
-                    log.info("Captured outgoing kafka message {}", topic);
-                } else {
-                    log.info("Captured incoming kafka message {}", topic);
-                }
+                writeLogLine(info, masked);
             }
         } catch (Exception e) {
             log.error("Error while logging kafka info", e);
+        }
+    }
+
+    private void writeLogLine(KafkaMessageInfo info, KafkaMessageInfo masked) {
+        String topic = masked.getTopic();
+        boolean outgoing = info.getDirection() == KafkaMessageInfo.Direction.OUTGOING;
+        boolean error = info.getStatus() == KafkaMessageInfo.Status.ERROR;
+        Long duration = info.getDuration();
+
+        if (outgoing) {
+            if (error) {
+                log.warn("Failed to send outgoing kafka message {}", topic);
+            } else if (info.getStatus() == KafkaMessageInfo.Status.SUCCESS) {
+                log.info("Sent outgoing kafka message {}", topic);
+            } else {
+                log.info("Captured outgoing kafka message {}", topic);
+            }
+            return;
+        }
+
+        if (error) {
+            if (duration != null) {
+                log.warn("Failed to process incoming kafka message {} after {}ms", topic, duration);
+            } else {
+                log.warn("Failed to process incoming kafka message {}", topic);
+            }
+        } else if (info.getStatus() == KafkaMessageInfo.Status.SUCCESS) {
+            if (duration != null) {
+                log.info("Processed incoming kafka message {} in {}ms", topic, duration);
+            } else {
+                log.info("Processed incoming kafka message {}", topic);
+            }
+        } else {
+            log.info("Captured incoming kafka message {}", topic);
         }
     }
 

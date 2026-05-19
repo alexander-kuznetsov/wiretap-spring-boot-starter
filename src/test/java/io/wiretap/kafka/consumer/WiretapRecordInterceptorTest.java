@@ -1,5 +1,6 @@
 package io.wiretap.kafka.consumer;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -76,20 +77,52 @@ class WiretapRecordInterceptorTest {
                 key, value, headers, java.util.Optional.empty());
     }
 
-    private Map<String, Object> capturedKafkaInfo() throws Exception {
+    private Map<String, Object> latestKafkaInfo() throws Exception {
         return MAPPER.readValue(
-                appender.list.get(0).getMDCPropertyMap().get(KafkaLogSink.MDC_KEY), MAP_TYPE);
+                appender.list.get(appender.list.size() - 1).getMDCPropertyMap().get(KafkaLogSink.MDC_KEY), MAP_TYPE);
+    }
+
+    // ---- intercept ----
+
+    @Test
+    void intercept_doesNotEmitAnyLog() {
+        interceptor.intercept(record("k", "v", new RecordHeaders()), consumer);
+
+        assertThat(appender.list).isEmpty();
     }
 
     @Test
-    void intercept_emitsOneLine_withGroupClientPartitionAndOffset() throws Exception {
+    void intercept_skipsExcludedTopicSilently() {
+        KafkaConsumerLogMessageSettings settings = new KafkaConsumerLogMessageSettings();
+        settings.setExcludeTopicPatterns(List.of("orders\\..*"));
+        WiretapRecordInterceptor<String, String> filtered = new WiretapRecordInterceptor<>(
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
+        filtered.intercept(rec, consumer);
+        filtered.success(rec, consumer);
+
+        assertThat(appender.list).isEmpty();
+    }
+
+    // ---- success ----
+
+    @Test
+    void success_emitsSingleLogWithSuccessStatusAndDuration() throws Exception {
         RecordHeaders headers = new RecordHeaders();
         headers.add(new RecordHeader("x-trace-id", "abc".getBytes(StandardCharsets.UTF_8)));
+        ConsumerRecord<String, String> rec = record("ord-42", "{\"orderId\":\"ord-42\"}", headers);
 
-        interceptor.intercept(record("ord-42", "{\"orderId\":\"ord-42\"}", headers), consumer);
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
 
         assertThat(appender.list).hasSize(1);
-        Map<String, Object> payload = capturedKafkaInfo();
+        ILoggingEvent event = appender.list.get(0);
+        assertThat(event.getLevel()).isEqualTo(Level.INFO);
+        assertThat(event.getFormattedMessage()).startsWith("Processed incoming kafka message orders.events in ")
+                .endsWith("ms");
+
+        Map<String, Object> payload = latestKafkaInfo();
         assertThat(payload)
                 .containsEntry("direction", "INCOMING")
                 .containsEntry("topic", "orders.events")
@@ -99,19 +132,45 @@ class WiretapRecordInterceptorTest {
                 .containsEntry("group_id", "checkout-group")
                 .containsEntry("key", "ord-42")
                 .containsEntry("value", "{\"orderId\":\"ord-42\"}")
-                .containsEntry("timestamp_type", "CREATE_TIME");
-        @SuppressWarnings("unchecked")
-        Map<String, String> outHeaders = (Map<String, String>) payload.get("headers");
-        assertThat(outHeaders).containsEntry("x-trace-id", "abc");
-        assertThat(appender.list.get(0).getMessage()).isEqualTo("Captured incoming kafka message {}");
+                .containsEntry("timestamp_type", "CREATE_TIME")
+                .containsEntry("status", "SUCCESS")
+                .containsKey("duration");
+        assertThat(((Number) payload.get("duration")).longValue()).isGreaterThanOrEqualTo(0L);
     }
 
+    // ---- failure ----
+
     @Test
-    void intercept_usesMdcTraceId_whenAlreadyPopulated() {
+    void failure_emitsWarnWithErrorStatusDurationAndErrorFields() throws Exception {
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
+        IllegalStateException boom = new IllegalStateException("validation failed");
+
+        interceptor.intercept(rec, consumer);
+        interceptor.failure(rec, boom, consumer);
+
+        assertThat(appender.list).hasSize(1);
+        ILoggingEvent event = appender.list.get(0);
+        assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(event.getFormattedMessage()).startsWith("Failed to process incoming kafka message orders.events");
+
+        Map<String, Object> payload = latestKafkaInfo();
+        assertThat(payload)
+                .containsEntry("status", "ERROR")
+                .containsEntry("error_class", "java.lang.IllegalStateException")
+                .containsEntry("error_message", "validation failed")
+                .containsKey("duration");
+    }
+
+    // ---- MDC / trace propagation ----
+
+    @Test
+    void success_inheritsMdcTraceId_whenPopulatedBeforeIntercept() {
         MDC.put("traceId", "preexisting-trace");
         MDC.put("spanId", "preexisting-span");
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
 
-        interceptor.intercept(record("k", "v", new RecordHeaders()), consumer);
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
 
         Map<String, String> mdc = appender.list.get(0).getMDCPropertyMap();
         assertThat(mdc).containsEntry("traceId", "preexisting-trace");
@@ -119,12 +178,14 @@ class WiretapRecordInterceptorTest {
     }
 
     @Test
-    void intercept_fallsBackToB3HeaderTrace_whenMdcEmpty() {
+    void success_fallsBackToB3HeaderTrace_whenMdcEmpty() {
         RecordHeaders headers = new RecordHeaders();
         headers.add(new RecordHeader("b3",
                 "0123456789abcdef0123456789abcdef-aaaaaaaaaaaaaaaa-1".getBytes(StandardCharsets.UTF_8)));
+        ConsumerRecord<String, String> rec = record("k", "v", headers);
 
-        interceptor.intercept(record("k", "v", headers), consumer);
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
 
         Map<String, String> mdc = appender.list.get(0).getMDCPropertyMap();
         assertThat(mdc).containsEntry("traceId", "0123456789abcdef0123456789abcdef");
@@ -132,12 +193,14 @@ class WiretapRecordInterceptorTest {
     }
 
     @Test
-    void intercept_fallsBackToTraceparentHeader_whenMdcEmptyAndB3Absent() {
+    void failure_fallsBackToTraceparentHeader_whenMdcEmpty() {
         RecordHeaders headers = new RecordHeaders();
         headers.add(new RecordHeader("traceparent",
                 "00-00112233445566778899aabbccddeeff-1122334455667788-01".getBytes(StandardCharsets.UTF_8)));
+        ConsumerRecord<String, String> rec = record("k", "v", headers);
 
-        interceptor.intercept(record("k", "v", headers), consumer);
+        interceptor.intercept(rec, consumer);
+        interceptor.failure(rec, new RuntimeException("boom"), consumer);
 
         Map<String, String> mdc = appender.list.get(0).getMDCPropertyMap();
         assertThat(mdc).containsEntry("traceId", "00112233445566778899aabbccddeeff");
@@ -145,50 +208,82 @@ class WiretapRecordInterceptorTest {
     }
 
     @Test
-    void intercept_logsWithoutTrace_whenMdcAndHeadersEmpty() {
-        interceptor.intercept(record("k", "v", new RecordHeaders()), consumer);
+    void success_logsWithoutTrace_whenMdcAndHeadersEmpty() {
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
+
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
 
         Map<String, String> mdc = appender.list.get(0).getMDCPropertyMap();
         assertThat(mdc).doesNotContainKey("traceId");
         assertThat(mdc).doesNotContainKey("spanId");
     }
 
+    // ---- visibility ----
+
     @Test
-    void intercept_skipsExcludedTopic() {
+    void durationVisibilityFalse_omitsDurationField() throws Exception {
         KafkaConsumerLogMessageSettings settings = new KafkaConsumerLogMessageSettings();
-        settings.setExcludeTopicPatterns(List.of("orders\\..*"));
-        WiretapRecordInterceptor<String, String> filtered = new WiretapRecordInterceptor<>(
+        settings.getVisibilitySettings().put(KafkaConfigurableField.DURATION, Boolean.FALSE);
+        WiretapRecordInterceptor<String, String> hidden = new WiretapRecordInterceptor<>(
                 new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
 
-        filtered.intercept(record("k", "v", new RecordHeaders()), consumer);
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
+        hidden.intercept(rec, consumer);
+        hidden.success(rec, consumer);
 
-        assertThat(appender.list).isEmpty();
+        Map<String, Object> payload = latestKafkaInfo();
+        assertThat(payload).doesNotContainKey("duration");
+        assertThat(payload).containsEntry("status", "SUCCESS");
     }
 
     @Test
-    void intercept_respectsVisibilityFlags() throws Exception {
+    void valueAndKeyVisibilityFalse_omitsThoseFields() throws Exception {
         KafkaConsumerLogMessageSettings settings = new KafkaConsumerLogMessageSettings();
         settings.getVisibilitySettings().put(KafkaConfigurableField.KEY, Boolean.FALSE);
         settings.getVisibilitySettings().put(KafkaConfigurableField.VALUE, Boolean.FALSE);
         WiretapRecordInterceptor<String, String> hidden = new WiretapRecordInterceptor<>(
                 new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
 
-        hidden.intercept(record("k", "v", new RecordHeaders()), consumer);
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
+        hidden.intercept(rec, consumer);
+        hidden.success(rec, consumer);
 
-        Map<String, Object> payload = capturedKafkaInfo();
+        Map<String, Object> payload = latestKafkaInfo();
         assertThat(payload).doesNotContainKeys("key", "value");
     }
 
+    // ---- ThreadLocal cleanup ----
+
     @Test
-    void intercept_returnsSameRecord_evenWhenLoggingThrows() {
-        ConsumerRecord<String, String> input = record("k", "v", new RecordHeaders());
-        // groupMetadata throws → readGroupId returns null silently; intercept still returns record
+    void afterRecord_clearsThreadLocal_soNextSuccessHasNoDuration() throws Exception {
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
+
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
+        interceptor.afterRecord(rec, consumer);
+
+        // simulate a stray success on the same thread without a preceding intercept
+        interceptor.success(rec, consumer);
+
+        // second log should have no duration field
+        assertThat(appender.list).hasSize(2);
+        Map<String, Object> second = MAPPER.readValue(
+                appender.list.get(1).getMDCPropertyMap().get(KafkaLogSink.MDC_KEY), MAP_TYPE);
+        assertThat(second).doesNotContainKey("duration");
+        assertThat(second).containsEntry("status", "SUCCESS");
+    }
+
+    @Test
+    void interceptReturnsSameRecord_evenWhenSinkThrows() {
+        // groupMetadata throws → readGroupId returns null silently; intercept stamps start time anyway
         when(consumer.groupMetadata()).thenThrow(new IllegalStateException("boom"));
+        ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
 
-        ConsumerRecord<String, String> result = interceptor.intercept(input, consumer);
+        ConsumerRecord<String, String> result = interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
 
-        assertThat(result).isSameAs(input);
-        // emit still happened — just without groupId
+        assertThat(result).isSameAs(rec);
         assertThat(appender.list).hasSize(1);
     }
 }

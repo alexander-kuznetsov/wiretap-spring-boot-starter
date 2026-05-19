@@ -7,29 +7,43 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 ## [Unreleased]
 
 ### Changed
-- Consumer-side Kafka logging now runs as a Spring Kafka
-  `RecordInterceptor` (registered via `ContainerCustomizer`) instead of
-  the Kafka-native `ConsumerInterceptor` (which was attached through
-  `interceptor.classes` on the consumer config). The new hook runs
-  inside the Spring Kafka listener observation span, so `kafka_info`
-  picks up `trace_id` / `span_id` from MDC automatically — including
-  the case where the upstream producer did not propagate a trace
-  (listener observation opens a fresh root span and wiretap inherits
-  it). If listener observation is disabled, wiretap falls back to
-  extracting `b3` / `traceparent` from record headers, preserving the
-  previous SSNC-10406 behaviour for that mode. Auto-configured
-  `ConcurrentKafkaListenerContainerFactory` from Spring Boot picks the
-  new customizer up automatically; manually constructed factories need
-  one explicit line — see README.
+- Kafka logs are emitted once per message, after the operation completes.
+  Producer-side: a Spring Kafka `ProducerListener` writes one
+  `kafka_info OUTGOING` line in `onSuccess` / `onError` with
+  `status=SUCCESS` / `ERROR`, broker-assigned `partition` / `offset`,
+  and on failure `error_class` / `error_message` (at `WARN`).
+  Consumer-side: a Spring Kafka `RecordInterceptor` (registered via
+  `ContainerCustomizer`) logs in `success(...)` / `failure(...)` with
+  `duration` (listener invocation time in ms) and `status`, instead of
+  the old Kafka-native `ConsumerInterceptor.onConsume(...)`. Both
+  hooks live inside the Spring Kafka listener / template observation
+  context, so `kafka_info` picks up `traceId` / `spanId` from MDC
+  automatically — even when the upstream producer did not propagate a
+  trace. If listener observation is disabled, wiretap falls back to
+  extracting `b3` / `traceparent` from record headers as before.
+  Auto-configured factories from Spring Boot pick up the new
+  customizers automatically; manually constructed factories /
+  templates need one explicit line — see README sections
+  "Custom KafkaTemplate" and "Custom listener container factories".
+- Producer-side `client_id` is no longer logged. `ProducerListener`
+  does not expose it; Kafka publishes producer client-id through
+  JMX / Micrometer metrics instead.
 
 ### Removed
+- `io.wiretap.kafka.producer.WiretapProducerInterceptor` is gone, along
+  with its `DefaultKafkaProducerFactoryCustomizer` registration via
+  `interceptor.classes`. Replaced by
+  `io.wiretap.kafka.producer.WiretapProducerListener` (Spring Kafka
+  SPI).
 - `io.wiretap.kafka.consumer.WiretapConsumerInterceptor` is gone, along
-  with the `DefaultKafkaConsumerFactoryCustomizer` that added it to
-  `interceptor.classes`. Any application that referenced this class
-  directly (e.g. hardcoded in `application.yml` under
-  `spring.kafka.consumer.properties.interceptor.classes`) needs to drop
-  that reference — wiretap-auto-config does the registration through
-  the Spring Kafka container layer now.
+  with its `DefaultKafkaConsumerFactoryCustomizer` registration via
+  `interceptor.classes`. Replaced by
+  `io.wiretap.kafka.consumer.WiretapRecordInterceptor` (Spring Kafka
+  SPI).
+- Applications that hardcoded either class in
+  `spring.kafka.{producer,consumer}.properties.interceptor.classes`
+  must drop those references — wiretap-auto-config now registers
+  through the Spring Kafka container / template layer.
 
 ## [0.1.5] - 2026-05-19
 

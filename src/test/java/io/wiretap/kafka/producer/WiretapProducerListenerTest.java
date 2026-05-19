@@ -1,0 +1,137 @@
+package io.wiretap.kafka.producer;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.wiretap.kafka.KafkaLogSink;
+import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
+import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings.KafkaConfigurableField;
+import io.wiretap.kafka.message.settings.KafkaProducerLogMessageSettings;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.common.header.internals.RecordHeaders;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class WiretapProducerListenerTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+
+    private WiretapProducerListener listener;
+    private ListAppender<ILoggingEvent> appender;
+    private Logger sinkLogger;
+
+    @BeforeEach
+    void setUp() {
+        listener = new WiretapProducerListener(
+                new KafkaLogSink(new KafkaProducerLogMessageSettings(), new KafkaAccessFieldNames(), null, null, null));
+
+        sinkLogger = (Logger) LoggerFactory.getLogger(KafkaLogSink.class);
+        appender = new ListAppender<>();
+        appender.start();
+        sinkLogger.addAppender(appender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        sinkLogger.detachAppender(appender);
+    }
+
+    private ProducerRecord<Object, Object> producerRecord(String key, String value) {
+        RecordHeaders headers = new RecordHeaders();
+        headers.add(new RecordHeader("x-trace-id", "abc".getBytes(StandardCharsets.UTF_8)));
+        return new ProducerRecord<>("orders.events", null, 1700000000000L, key, (Object) value, headers);
+    }
+
+    private RecordMetadata metadata(int partition, long offset) {
+        return new RecordMetadata(
+                new TopicPartition("orders.events", partition), offset, 0, 1700000000000L, 0, 0);
+    }
+
+    private Map<String, Object> latestKafkaInfo() throws Exception {
+        return MAPPER.readValue(
+                appender.list.get(appender.list.size() - 1).getMDCPropertyMap().get(KafkaLogSink.MDC_KEY), MAP_TYPE);
+    }
+
+    @Test
+    void onSuccess_emitsInfoLogWithSuccessStatusBrokerFields() throws Exception {
+        listener.onSuccess(producerRecord("ord-42", "{\"orderId\":\"ord-42\"}"), metadata(3, 18472L));
+
+        assertThat(appender.list).hasSize(1);
+        ILoggingEvent event = appender.list.get(0);
+        assertThat(event.getLevel()).isEqualTo(Level.INFO);
+        assertThat(event.getFormattedMessage()).isEqualTo("Sent outgoing kafka message orders.events");
+
+        Map<String, Object> payload = latestKafkaInfo();
+        assertThat(payload)
+                .containsEntry("direction", "OUTGOING")
+                .containsEntry("topic", "orders.events")
+                .containsEntry("partition", 3)
+                .containsEntry("offset", 18472)
+                .containsEntry("key", "ord-42")
+                .containsEntry("value", "{\"orderId\":\"ord-42\"}")
+                .containsEntry("status", "SUCCESS");
+        @SuppressWarnings("unchecked")
+        Map<String, String> headers = (Map<String, String>) payload.get("headers");
+        assertThat(headers).containsEntry("x-trace-id", "abc");
+    }
+
+    @Test
+    void onError_emitsWarnWithErrorStatusAndErrorFields() throws Exception {
+        IllegalStateException boom = new IllegalStateException("broker unreachable");
+
+        listener.onError(producerRecord("ord-42", "{}"), null, boom);
+
+        assertThat(appender.list).hasSize(1);
+        ILoggingEvent event = appender.list.get(0);
+        assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(event.getFormattedMessage()).isEqualTo("Failed to send outgoing kafka message orders.events");
+
+        Map<String, Object> payload = latestKafkaInfo();
+        assertThat(payload)
+                .containsEntry("status", "ERROR")
+                .containsEntry("error_class", "java.lang.IllegalStateException")
+                .containsEntry("error_message", "broker unreachable");
+    }
+
+    @Test
+    void onSuccess_skipsExcludedTopic() {
+        KafkaProducerLogMessageSettings settings = new KafkaProducerLogMessageSettings();
+        settings.setExcludeTopicPatterns(List.of("orders\\..*"));
+        WiretapProducerListener filtered = new WiretapProducerListener(
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+
+        filtered.onSuccess(producerRecord("k", "v"), metadata(0, 1L));
+
+        assertThat(appender.list).isEmpty();
+    }
+
+    @Test
+    void onSuccess_visibilityOff_omitsKeyAndValue() throws Exception {
+        KafkaProducerLogMessageSettings settings = new KafkaProducerLogMessageSettings();
+        settings.getVisibilitySettings().put(KafkaConfigurableField.KEY, Boolean.FALSE);
+        settings.getVisibilitySettings().put(KafkaConfigurableField.VALUE, Boolean.FALSE);
+        WiretapProducerListener hidden = new WiretapProducerListener(
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+
+        hidden.onSuccess(producerRecord("k", "v"), metadata(0, 1L));
+
+        Map<String, Object> payload = latestKafkaInfo();
+        assertThat(payload).doesNotContainKeys("key", "value");
+        assertThat(payload).containsEntry("status", "SUCCESS");
+    }
+}

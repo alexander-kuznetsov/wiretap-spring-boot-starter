@@ -6,16 +6,17 @@ import io.wiretap.kafka.message.KafkaTopicMaskingHandler;
 import io.wiretap.kafka.message.KafkaValueMaskingHandler;
 import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
 import io.wiretap.kafka.message.settings.KafkaProducerLogMessageSettings;
-import io.wiretap.kafka.producer.WiretapProducerInterceptor;
+import io.wiretap.kafka.producer.WiretapProducerListener;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.boot.autoconfigure.kafka.DefaultKafkaProducerFactoryCustomizer;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.support.ProducerListener;
 
 @Configuration
 @ConditionalOnClass({KafkaListenerEndpointRegistry.class, ProducerConfig.class})
@@ -33,17 +34,20 @@ public class OutgoingKafkaProducerConfiguration {
             @Autowired(required = false) KafkaTopicMaskingHandler topicMaskingHandler
     ) {
         KafkaAccessFieldNames names = fieldNames.getKafka();
-        KafkaLogSink sink = new KafkaLogSink(settings, names,
+        return new KafkaLogSink(settings, names,
                 valueMaskingHandler, headerMaskingHandler, topicMaskingHandler);
-        WiretapProducerInterceptor.setSink(sink);
-        return sink;
     }
 
+    /**
+     * Spring Boot's auto-configured {@code KafkaTemplate} picks up
+     * {@link ProducerListener} beans from the context through
+     * {@code ObjectProvider} and attaches them automatically. Manually
+     * constructed templates (multi-cluster setups) need an explicit
+     * {@code template.setProducerListener(...)} — README has a snippet.
+     */
     @Bean
-    public DefaultKafkaProducerFactoryCustomizer wiretapProducerInterceptorCustomizer() {
-        return factory -> factory.updateConfigs(java.util.Map.of(
-                ProducerConfig.INTERCEPTOR_CLASSES_CONFIG,
-                WiretapProducerInterceptor.class.getName()
-        ));
+    public ProducerListener<Object, Object> wiretapProducerListener(
+            @Qualifier("wiretapProducerLogSink") KafkaLogSink producerLogSink) {
+        return new WiretapProducerListener(producerLogSink);
     }
 }
