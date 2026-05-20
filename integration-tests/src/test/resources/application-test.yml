@@ -1,0 +1,13 @@
+spring:
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    consumer:
+      group-id: wiretap-it-${random.uuid}
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+
+wiretap:
+  pretty-print: false

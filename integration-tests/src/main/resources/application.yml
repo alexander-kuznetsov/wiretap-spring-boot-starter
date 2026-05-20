@@ -1,0 +1,100 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: wiretap-integration-tests
+  kafka:
+    bootstrap-servers: localhost:9092
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
+    producer:
+      client-id: wiretap-it-producer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: wiretap-it
+      client-id: wiretap-it-consumer
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+
+wiretap:
+  pretty-print: false
+  message-masking: true
+
+  rest-controllers:
+    enable-url-masking: true
+    enable-request-params-masking: true
+    http-body-settings:
+      max-body-length: 10000
+      max-field-length: 1000
+      enable-body-truncating: true
+      enable-body-masking: true
+    visibility-settings:
+      REQUEST_URL: true
+      REQUEST_HEADERS: true
+      REQUEST_PARAMS: true
+      REQUEST_BODY: true
+      RESPONSE_HEADERS: true
+      RESPONSE_BODY: true
+    exclude-request-patterns:
+      - "/actuator/.*"
+
+  rest-template-interceptor:
+    enabled: true
+    enable-url-masking: true
+    enable-request-params-masking: true
+
+  rest-client-interceptor:
+    enabled: true
+    enable-url-masking: true
+    enable-request-params-masking: true
+
+  web-client-interceptor:
+    enabled: true
+    enable-url-masking: true
+    enable-request-params-masking: true
+
+  kafka-producer-interceptor:
+    enabled: true
+    visibility-settings:
+      TOPIC: true
+      PARTITION: true
+      CLIENT_ID: true
+      KEY: true
+      VALUE: true
+      HEADERS: true
+      TIMESTAMP: true
+      STATUS: true
+    message-body-settings:
+      enable-value-masking: true
+      enable-value-truncating: true
+      max-value-length: 2000
+
+  kafka-consumer-interceptor:
+    enabled: true
+    visibility-settings:
+      TOPIC: true
+      PARTITION: true
+      OFFSET: true
+      CLIENT_ID: true
+      GROUP_ID: true
+      KEY: true
+      VALUE: true
+      HEADERS: true
+      TIMESTAMP: true
+    message-body-settings:
+      enable-value-masking: true
+      enable-value-truncating: true
+      max-value-length: 2000
+    exclude-topic-patterns:
+      - "__consumer_offsets"
+
+  default-log: false
+
+logging:
+  level:
+    root: INFO
