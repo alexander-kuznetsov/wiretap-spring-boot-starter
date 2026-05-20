@@ -4,6 +4,27 @@ All notable changes are recorded here.
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html);
 versions before `1.0.0` are pre-release and the public API may change between minors.
 
+## [Unreleased]
+
+### Added
+- One Maven Central artifact per tested Spring Boot patch version,
+  built from the same revision through per-subproject Copy-with-filter
+  source rewriting:
+  - `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter`
+    (Logback 1.4 / logback-access 1.x).
+  - `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter`
+    (Logback 1.5 / logback-access common-API).
+  - `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter`
+    (Logback 1.5 / logback-access common-API).
+  Pick the coordinate that matches your Spring Boot version.
+
+### Deprecated
+- `io.github.alexander-kuznetsov:wiretap` (without
+  `-spring-boot-X.Y.Z-starter` suffix). Releases `0.1.4`–`0.1.6` stay
+  on Maven Central; no further releases under this artifactId. Migrate
+  to `wiretap-spring-boot-3.2.7-starter` for equivalent contents and
+  future patches.
+
 ## [0.1.6] - 2026-05-19
 
 ### Changed

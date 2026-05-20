@@ -36,7 +36,11 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation(project(":"))
+    // Pick the wiretap subproject whose coordinates match the chosen
+    // matrix cell. springBootVersion is expected to exactly equal one of
+    // the published artifact targets; an unknown value fails fast with
+    // "project not found".
+    implementation(project(":wiretap-spring-boot-${springBootVersion}-starter"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
@@ -58,15 +62,26 @@ tasks.test {
     if (javaToolchainVersion >= 25) {
         systemProperty("net.bytebuddy.experimental", "true")
     }
-    // Spring Boot 3.4+ ships Logback 1.5 which moved JaninoEventEvaluatorBase
-    // out of logback-core; the pinned logback-access-spring-boot-starter 4.1.2
-    // (used for the Boot 3.x branch in the root build) still expects the old
-    // location and fails at context start. Skip integration tests on SB 3.4+
-    // until wiretap adopts the new logback-access API (see follow-up SSNC).
-    onlyIf {
-        val sb = springBootVersion
-        sb.startsWith("3.2.") || sb.startsWith("4.")
+}
+
+// On SB 3.3+ rewrite the logback-access SPI import to match the common-API
+// build of wiretap (the same rewrite the wiretap-spring-boot-3.4.5/3.5.14
+// subprojects apply to root sources).
+if (!springBootVersion.startsWith("3.2.")) {
+    val rewriteMainSources = tasks.register<Copy>("rewriteMainSources") {
+        from("src/main/java")
+        into(layout.buildDirectory.dir("generated/sources/logback-access-common/java/main"))
+        filter { line ->
+            line.replace(
+                "ch.qos.logback.access.spi.IAccessEvent",
+                "ch.qos.logback.access.common.spi.IAccessEvent"
+            )
+        }
     }
+    sourceSets.main {
+        java.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/logback-access-common/java/main")))
+    }
+    tasks.named("compileJava") { dependsOn(rewriteMainSources) }
 }
 
 // Not a publishable artifact: an integration-test harness, not a distribution.

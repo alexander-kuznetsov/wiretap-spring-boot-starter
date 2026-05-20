@@ -20,4 +20,7 @@ plugins {
 
 rootProject.name = "wiretap"
 
+include(":wiretap-spring-boot-3.2.7-starter")
+include(":wiretap-spring-boot-3.4.5-starter")
+include(":wiretap-spring-boot-3.5.14-starter")
 include(":integration-tests")

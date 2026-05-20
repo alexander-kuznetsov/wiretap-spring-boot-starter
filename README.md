@@ -996,15 +996,27 @@ Leave it `false` (default) in production — log shippers parse single-line JSON
 
 ## Compatibility
 
-| Wiretap | Spring Boot | Java | Status |
-|---------|-------------|------|--------|
-| 0.1.x | 3.2.7 (baseline) | 17, 21 | extended support |
-| 0.1.x | 3.4.5 | 17, 21, 25 | actively tested |
-| 0.1.x | 3.5.14 | 17, 21, 25 | actively tested, last 3.x minor |
+Wiretap is published as **one artifact per tested Spring Boot patch
+version**. The coordinate name encodes the exact target, so the choice
+is unambiguous:
 
-Boot 4.x is planned as a separate major (wiretap 2.x) — see
-[`COMPATIBILITY.md`](./COMPATIBILITY.md) for the policy and
-verification scripts.
+| Artifact                              | Spring Boot       | Java        | Status |
+|---------------------------------------|-------------------|-------------|--------|
+| `wiretap-spring-boot-3.2.7-starter`   | 3.2.7 (baseline)  | 17, 21      | extended support — kept working for legacy consumers |
+| `wiretap-spring-boot-3.4.5-starter`   | 3.4.5             | 17, 21, 25  | actively tested |
+| `wiretap-spring-boot-3.5.14-starter`  | 3.5.14            | 17, 21, 25  | actively tested, last 3.x minor |
+
+The split exists because Logback 1.5 moved `IAccessEvent` from
+`ch.qos.logback.access.spi` to `ch.qos.logback.access.common.spi`, so a
+single jar cannot satisfy all 3.x lines. Pick the coordinate that
+matches your Spring Boot version. Boot 4.x is planned as a separate
+major (wiretap 2.x) — see [`COMPATIBILITY.md`](./COMPATIBILITY.md) for
+the deprecation policy and verification scripts.
+
+> **Deprecated:** `io.github.alexander-kuznetsov:wiretap` (without the
+> `-spring-boot-X.Y.Z-starter` suffix) is frozen at `0.1.6`. Migrate to
+> `wiretap-spring-boot-3.2.7-starter` for the equivalent contents and
+> future patches.
 
 Override the matrix per build:
 
