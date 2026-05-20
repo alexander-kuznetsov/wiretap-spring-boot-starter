@@ -18,6 +18,11 @@ versions before `1.0.0` are pre-release and the public API may change between mi
     (Logback 1.5 / logback-access common-API).
   Pick the coordinate that matches your Spring Boot version.
 
+  A `wiretap-spring-boot-4.0.6-starter` subproject is scaffolded but
+  currently disabled — Spring Boot 4 ships Jackson 3, which requires a
+  deeper refactor than text-only source rewriting can handle. Tracked
+  under a follow-up SSNC.
+
 ### Deprecated
 - `io.github.alexander-kuznetsov:wiretap` (without
   `-spring-boot-X.Y.Z-starter` suffix). Releases `0.1.4`–`0.1.6` stay

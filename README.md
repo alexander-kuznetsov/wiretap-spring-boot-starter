@@ -1008,10 +1008,10 @@ is unambiguous:
 
 The split exists because Logback 1.5 moved `IAccessEvent` from
 `ch.qos.logback.access.spi` to `ch.qos.logback.access.common.spi`, so a
-single jar cannot satisfy all 3.x lines. Pick the coordinate that
-matches your Spring Boot version. Boot 4.x is planned as a separate
-major (wiretap 2.x) — see [`COMPATIBILITY.md`](./COMPATIBILITY.md) for
-the deprecation policy and verification scripts.
+single jar cannot satisfy all the active branches. Pick the coordinate
+that matches your Spring Boot version. See
+[`COMPATIBILITY.md`](./COMPATIBILITY.md) for the deprecation policy and
+verification scripts.
 
 > **Deprecated:** `io.github.alexander-kuznetsov:wiretap` (without the
 > `-spring-boot-X.Y.Z-starter` suffix) is frozen at `0.1.6`. Migrate to
