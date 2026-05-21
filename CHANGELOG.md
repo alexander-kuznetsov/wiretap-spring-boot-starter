@@ -11,17 +11,24 @@ versions before `1.0.0` are pre-release and the public API may change between mi
   built from the same revision through per-subproject Copy-with-filter
   source rewriting:
   - `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter`
-    (Logback 1.4 / logback-access 1.x).
+    (Logback 1.4 / logback-access 1.x / Jackson 2).
   - `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter`
-    (Logback 1.5 / logback-access common-API).
+    (Logback 1.5 / logback-access common-API / Jackson 2).
   - `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter`
-    (Logback 1.5 / logback-access common-API).
+    (Logback 1.5 / logback-access common-API / Jackson 2).
+  - `io.github.alexander-kuznetsov:wiretap-spring-boot-4.0.6-starter`
+    (Logback 1.5 / logback-access common-API / Jackson 3 /
+    `tools.jackson.*`). Combines a slightly broader Copy-with-filter
+    (Spring Boot 4 client-module relocations) with hand-written
+    Jackson 3 overlays for every wiretap class that touches Jackson:
+    `JsonNode.fields()`/`elements()` walks were rewritten to the
+    collection-returning Jackson 3 equivalents, `new TextNode(...)`
+    replaced by `StringNode.valueOf(...)`, immutable `ObjectMapper`
+    constructed via `JsonMapper.builder().build()`,
+    `JsonGenerator.writeXxxField` renamed to `writeXxxProperty`, and
+    `JsonProcessingException` (now a `RuntimeException`) replaced by
+    `JacksonException`.
   Pick the coordinate that matches your Spring Boot version.
-
-  A `wiretap-spring-boot-4.0.6-starter` subproject is scaffolded but
-  currently disabled — Spring Boot 4 ships Jackson 3, which requires a
-  deeper refactor than text-only source rewriting can handle. Tracked
-  under a follow-up SSNC.
 
 ### Deprecated
 - `io.github.alexander-kuznetsov:wiretap` (without

@@ -122,6 +122,15 @@ if (!springBootVersion.startsWith("3.2.")) {
                     "@org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate\n" +
                         "@ExtendWith(OutputCaptureExtension.class)"
                 )
+                // Spring Boot 4 ships Jackson 3 (tools.jackson.*). Integration-tests
+                // parse captured JSON via JsonLogCapture; rewrite its imports and
+                // the no-arg ObjectMapper construction so it compiles on Jackson 3.
+                .replace("com.fasterxml.jackson.core.", "tools.jackson.core.")
+                .replace("com.fasterxml.jackson.databind.", "tools.jackson.databind.")
+                .replace(
+                    "new ObjectMapper()",
+                    "tools.jackson.databind.json.JsonMapper.builder().build()"
+                )
         }
         return rewritten
     }

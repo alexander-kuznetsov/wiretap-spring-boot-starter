@@ -1005,9 +1005,11 @@ is unambiguous:
 | `wiretap-spring-boot-3.2.7-starter`   | 3.2.7 (baseline)  | 17, 21      | extended support — kept working for legacy consumers |
 | `wiretap-spring-boot-3.4.5-starter`   | 3.4.5             | 17, 21, 25  | actively tested |
 | `wiretap-spring-boot-3.5.14-starter`  | 3.5.14            | 17, 21, 25  | actively tested, last 3.x minor |
+| `wiretap-spring-boot-4.0.6-starter`   | 4.0.6             | 17, 21, 25  | actively tested, first SB 4 / Jackson 3 line |
 
 The split exists because Logback 1.5 moved `IAccessEvent` from
-`ch.qos.logback.access.spi` to `ch.qos.logback.access.common.spi`, so a
+`ch.qos.logback.access.spi` to `ch.qos.logback.access.common.spi` and
+Spring Boot 4 bumped to Jackson 3 with relocated client modules — a
 single jar cannot satisfy all the active branches. Pick the coordinate
 that matches your Spring Boot version. See
 [`COMPATIBILITY.md`](./COMPATIBILITY.md) for the deprecation policy and

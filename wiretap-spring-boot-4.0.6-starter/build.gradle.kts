@@ -5,10 +5,16 @@ import com.vanniktech.maven.publish.SonatypeHost
 // Wiretap built and tested against Spring Boot 4.0.6. Spring Boot 4 keeps
 // Logback on the 1.5.x line (logback-classic 1.5.32) but pulls a new major
 // of dev.akkinoc.spring.boot:logback-access-spring-boot-starter (5.0.1),
-// whose parent is spring-boot-starter-parent:4.0.6. The IAccessEvent SPI is
-// in the same common-API package as for 3.4.5/3.5.14, so we reuse the same
-// Copy-with-filter rewrite (ch.qos.logback.access.spi.IAccessEvent →
-// ch.qos.logback.access.common.spi.IAccessEvent).
+// whose parent is spring-boot-starter-parent:4.0.6.
+//
+// SB 4 also ships Jackson 3 (tools.jackson.*), which renamed several JsonNode
+// methods (fields()/elements() returning collections instead of Iterators) and
+// made ObjectMapper immutable. The text-based Copy-with-filter task that other
+// subprojects use cannot patch those API differences in isolation, so every
+// wiretap class that touches Jackson lives in src/main/java/ as a hand-written
+// overlay against the Jackson 3 API. The Copy task below imports the
+// remaining (Jackson-agnostic) sources from the root and rewrites only the
+// Spring Boot 4 module relocations.
 //
 // onlyIf: when the matrix passes -PspringBootVersion, this subproject runs
 // only on its target cell; without the property (e.g. during release) all
@@ -30,25 +36,14 @@ val targetSpringBootVersion = "4.0.6"
 val targetLogbackAccessSpringVersion = "5.0.1"
 val targetLogbackAccessCommonVersion = "2.0.12"
 val matrixSpringBootVersion = providers.gradleProperty("springBootVersion").orNull
-// WIP: this subproject is checked in as scaffolding for the Spring Boot 4
-// artifact but is intentionally disabled. Spring Boot 4 ships Jackson 3
-// (tools.jackson.*), which changed not only the namespace but also several
-// JsonNode method names (`fields()` → `properties()`, `elements()` → `values()`)
-// and turned ObjectMapper immutable; the source-rewrite Copy task cannot
-// patch those API differences in isolation. Re-enable by flipping isActive
-// to `matrixSpringBootVersion == null || matrixSpringBootVersion == targetSpringBootVersion`
-// once the dedicated Jackson 3 migration lands under its own SSNC ticket.
-val isActive = false
+val isActive = matrixSpringBootVersion == null || matrixSpringBootVersion == targetSpringBootVersion
 val javaToolchainVersion = providers.gradleProperty("javaToolchain").getOrElse("17").toInt()
 
 val feignCoreVersion = providers.gradleProperty("feignCoreVersion").getOrElse("13.5")
 val lombokVersion = "1.18.42"
-val jacksonVersion = "2.17.1"
 // 9.0 is the first logstash-logback-encoder line built against tools.jackson
-// (Jackson 3), which is what Spring Boot 4 ships. rewriteForSpringBoot4 below
-// patches wiretap sources to match.
+// (Jackson 3), which is what Spring Boot 4 ships.
 val logstashLogbackEncoderVersion = "9.0"
-val logbackJacksonVersion = "0.1.5"
 val httpClientVersion = "4.5.14"
 val guavaVersion = "33.2.1-jre"
 val commonsValidatorVersion = "1.9.0"
@@ -69,8 +64,9 @@ repositories {
 
 dependencyManagement {
     imports {
-        // Spring Boot 4 BOM already pins both Jackson 2.21.x (legacy annotations)
-        // and tools.jackson 3.1.x; no need to import jackson-bom separately.
+        // Spring Boot 4 BOM pins both jackson-bom (2.21.x annotations) and
+        // tools.jackson:jackson-bom (3.1.x core/databind); no need to import
+        // either separately.
         mavenBom("org.springframework.boot:spring-boot-dependencies:$targetSpringBootVersion")
     }
 }
@@ -84,14 +80,11 @@ dependencies {
     api("org.springframework.boot:spring-boot-restclient")
     api("org.springframework.boot:spring-boot-webclient")
     // SB 4 split JacksonAutoConfiguration out into spring-boot-jackson.
-    // Used by AutoConfigurationSmokeTest at test time, but also pulled in as
-    // api so consumer applications can depend on the same configuration.
     api("org.springframework.boot:spring-boot-jackson")
 
     api("io.micrometer:micrometer-tracing-bridge-brave")
     // SB 4 split tracing autoconfig out of spring-boot-autoconfigure into
-    // dedicated modules; pull them in so the Tracer bean is contributed by
-    // BraveAutoConfiguration as expected by wiretap's IncomingHttpConfiguration.
+    // dedicated modules so the Tracer bean is contributed by BraveAutoConfiguration.
     api("org.springframework.boot:spring-boot-micrometer-tracing")
     api("org.springframework.boot:spring-boot-micrometer-tracing-brave")
     api("io.github.openfeign:feign-core:$feignCoreVersion")
@@ -107,14 +100,14 @@ dependencies {
     api("ch.qos.logback:logback-classic")
     implementation("net.logstash.logback:logstash-logback-encoder:$logstashLogbackEncoderVersion")
     // logback-jackson:0.1.5 is Jackson 2-only and has no Jackson 3 release.
-    // It is not referenced from wiretap's source or XML configs, so we just
-    // omit it here to avoid pulling com.fasterxml.jackson.databind alongside
+    // wiretap does not reference it from source or XML configs, so we omit it
+    // here to keep the classpath free of com.fasterxml.jackson.databind alongside
     // tools.jackson.databind.
     implementation("org.codehaus.janino:janino")
 
-    // Jackson 3 lives under the tools.jackson coordinate. We pull both core
-    // and databind transitively through spring-boot-jackson, but make them
-    // explicit api here so consumers don't have to depend on the SB BOM.
+    // Jackson 3 lives under the tools.jackson coordinate. Pull both core and
+    // databind transitively through spring-boot-jackson, but make them explicit
+    // api here so consumers don't have to depend on the SB BOM.
     api("tools.jackson.core:jackson-databind")
     api("tools.jackson.core:jackson-core")
     // Jackson 3 keeps annotations in the legacy com.fasterxml namespace for
@@ -148,18 +141,57 @@ dependencies {
     testAnnotationProcessor("org.projectlombok:lombok:$lombokVersion")
 }
 
-// Spring Boot 4 split spring-boot-autoconfigure into per-client / per-feature
-// modules, moved Customizer / AutoConfiguration classes, and bumped Jackson
-// from the com.fasterxml.jackson.* namespace to tools.jackson.*. The source
-// rewrite below patches every relocation that wiretap's canonical sources hit.
+// Jackson-using sources live in this subproject's src/main/java as hand-written
+// overlay copies (Jackson 3 API). The Copy task below imports every other
+// wiretap source from the root and rewrites only the Spring Boot 4 module
+// relocations and the logback-access SPI move. Files in this list are
+// excluded from the Copy task so the overlay copy wins.
+val overlayMainFiles = listOf(
+    "io/wiretap/applog/extra/ExtraAppLogContextKeeper.java",
+    "io/wiretap/applog/provider/LazyStandardLogFieldsProvider.java",
+    "io/wiretap/applog/provider/WiretapDelegatingLogFieldProvider.java",
+    "io/wiretap/applog/provider/WiretapLogFieldProvider.java",
+    "io/wiretap/applog/provider/WiretapStandardLogFieldsProvider.java",
+    "io/wiretap/http/incoming/provider/httpinfo/HttpInfoMessageProvider.java",
+    "io/wiretap/http/incoming/provider/httpinfo/LazyHttpInfoMessageProvider.java",
+    "io/wiretap/http/incoming/provider/message/LazyMessageProvider.java",
+    "io/wiretap/http/incoming/provider/message/MessageProvider.java",
+    "io/wiretap/http/incoming/provider/trace/SpanIdProvider.java",
+    "io/wiretap/http/incoming/provider/trace/TraceIdProvider.java",
+    "io/wiretap/http/incoming/provider/WiretapAccessFieldProvider.java",
+    "io/wiretap/http/incoming/provider/WiretapDelegatingFieldProvider.java",
+    "io/wiretap/http/message/HttpMessageInfo.java",
+    "io/wiretap/http/message/settings/body/BodyParser.java",
+    "io/wiretap/http/message/settings/body/DefaultBodyParser.java",
+    "io/wiretap/http/message/settings/body/HttpBodyMasker.java",
+    "io/wiretap/http/outgoing/interceptor/feignclient/FeignClientWrapper.java",
+    "io/wiretap/http/outgoing/interceptor/rest/RestLoggingInterceptor.java",
+    "io/wiretap/http/outgoing/interceptor/webclient/WebClientLoggingFilter.java",
+    "io/wiretap/http/outgoing/interceptor/webservicetemplate/WebServiceTemplateLoggingInterceptor.java",
+    "io/wiretap/kafka/KafkaLogSink.java",
+    "io/wiretap/util/HttpBodyUtils.java",
+)
+val overlayTestFiles = listOf(
+    "io/wiretap/applog/provider/WiretapDelegatingLogFieldProviderTest.java",
+    "io/wiretap/http/incoming/provider/LazyDelegatesTest.java",
+    "io/wiretap/http/incoming/provider/trace/TraceIdProvidersTest.java",
+    "io/wiretap/http/incoming/provider/WiretapDelegatingFieldProviderTest.java",
+    "io/wiretap/http/message/settings/body/DefaultBodyParserTest.java",
+    "io/wiretap/http/outgoing/interceptor/rest/RestTemplateLoggingInterceptorTest.java",
+    "io/wiretap/http/outgoing/interceptor/webclient/WebClientLoggingFilterTest.java",
+    "io/wiretap/kafka/consumer/WiretapRecordInterceptorTest.java",
+    "io/wiretap/kafka/producer/WiretapProducerListenerTest.java",
+)
+
+// Patches Jackson-agnostic wiretap sources for Spring Boot 4: logback-access
+// common-API + per-client module relocations. Jackson is untouched here because
+// every Jackson-using class is overridden via the overlay above.
 fun rewriteForSpringBoot4(line: String): String =
     line
-        // logback-access SPI: same rewrite as for SB 3.4+
         .replace(
             "ch.qos.logback.access.spi.IAccessEvent",
             "ch.qos.logback.access.common.spi.IAccessEvent"
         )
-        // Spring Boot 4 module relocations
         .replace(
             "org.springframework.boot.web.client.RestTemplateCustomizer",
             "org.springframework.boot.restclient.RestTemplateCustomizer"
@@ -169,6 +201,10 @@ fun rewriteForSpringBoot4(line: String): String =
             "org.springframework.boot.restclient.RestClientCustomizer"
         )
         .replace(
+            "org.springframework.boot.web.client.RestTemplateBuilder",
+            "org.springframework.boot.restclient.RestTemplateBuilder"
+        )
+        .replace(
             "org.springframework.boot.web.reactive.function.client.WebClientCustomizer",
             "org.springframework.boot.webclient.WebClientCustomizer"
         )
@@ -176,45 +212,43 @@ fun rewriteForSpringBoot4(line: String): String =
             "org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration",
             "org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration"
         )
-        // Jackson 2 → Jackson 3 namespace migration. Annotations stayed at
-        // com.fasterxml.jackson.annotation, so we only swap core/databind.
-        .replace("com.fasterxml.jackson.core.", "tools.jackson.core.")
-        .replace("com.fasterxml.jackson.databind.", "tools.jackson.databind.")
-        // Class renames: JsonProcessingException → JacksonException (now a
-        // RuntimeException, but throws/catch declarations still compile).
-        .replace("JsonProcessingException", "JacksonException")
-        // new TextNode(value) → StringNode.construct(value) (Jackson 3 made
-        // text nodes immutable via factory; the old class is gone). The
-        // constructor sites get a fully-qualified replacement, so we drop the
-        // now-unused TextNode import to avoid "class not found" errors.
-        .replace("new TextNode(", "tools.jackson.databind.node.StringNode.construct(")
-        .replace("import tools.jackson.databind.node.TextNode;", "")
-        // ObjectMapper became immutable in Jackson 3 — patch the one fluent
-        // pattern wiretap uses to construct it.
-        .replace(
-            "new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL)",
-            "tools.jackson.databind.json.JsonMapper.builder().serializationInclusion(JsonInclude.Include.NON_NULL).build()"
-        )
 
 val rewriteMainSources = tasks.register<Copy>("rewriteMainSources") {
-    from(rootProject.layout.projectDirectory.dir("src/main/java"))
-    into(layout.buildDirectory.dir("generated/sources/logback-access-common/java/main"))
+    from(rootProject.layout.projectDirectory.dir("src/main/java")) {
+        exclude(overlayMainFiles)
+    }
+    into(layout.buildDirectory.dir("generated/sources/sb4/java/main"))
     filter { rewriteForSpringBoot4(it) }
 }
 
 val rewriteTestSources = tasks.register<Copy>("rewriteTestSources") {
-    from(rootProject.layout.projectDirectory.dir("src/test/java"))
-    into(layout.buildDirectory.dir("generated/sources/logback-access-common/java/test"))
+    from(rootProject.layout.projectDirectory.dir("src/test/java")) {
+        exclude(overlayTestFiles)
+    }
+    into(layout.buildDirectory.dir("generated/sources/sb4/java/test"))
     filter { rewriteForSpringBoot4(it) }
 }
 
 sourceSets {
     main {
-        java.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/logback-access-common/java/main")))
+        // Overlay first so the hand-written Jackson 3 copies win over anything
+        // the Copy task might still produce for the same FQN (defence in depth —
+        // the exclude list above is already authoritative).
+        java.setSrcDirs(
+            listOf(
+                layout.projectDirectory.dir("src/main/java"),
+                layout.buildDirectory.dir("generated/sources/sb4/java/main"),
+            )
+        )
         resources.setSrcDirs(listOf(rootProject.layout.projectDirectory.dir("src/main/resources")))
     }
     test {
-        java.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/logback-access-common/java/test")))
+        java.setSrcDirs(
+            listOf(
+                layout.projectDirectory.dir("src/test/java"),
+                layout.buildDirectory.dir("generated/sources/sb4/java/test"),
+            )
+        )
         resources.setSrcDirs(listOf(rootProject.layout.projectDirectory.dir("src/test/resources")))
     }
 }
@@ -245,7 +279,7 @@ mavenPublishing {
     coordinates("io.github.alexander-kuznetsov", "wiretap-spring-boot-4.0.6-starter", project.version.toString())
     pom {
         name.set("Wiretap (Spring Boot 4.0.6)")
-        description.set("Structured JSON logging for Spring Boot 4.0.6 — captures HTTP and Kafka traffic across all the standard clients. Built against Spring Framework 7 / logback-access-spring-boot-starter 5.0.1.")
+        description.set("Structured JSON logging for Spring Boot 4.0.6 — captures HTTP and Kafka traffic across all the standard clients. Built against Spring Framework 7 / Jackson 3 / logback-access-spring-boot-starter 5.0.1.")
         url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter")
         inceptionYear.set("2026")
         licenses {

@@ -10,7 +10,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-SPRING_BOOTS=${SPRING_BOOTS:-"3.2.7 3.4.5 3.5.14"}
+SPRING_BOOTS=${SPRING_BOOTS:-"3.2.7 3.4.5 3.5.14 4.0.6"}
 JAVAS=${JAVAS:-"17 21 25"}
 
 failures=()

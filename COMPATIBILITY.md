@@ -5,25 +5,35 @@
 Wiretap is published as **one artifact per tested Spring Boot patch
 version**. The Logback API broke its `IAccessEvent` package between 1.4
 and 1.5 (and `logback-access-spring-boot-starter` followed in 4.2.0),
-so a single jar cannot satisfy all the active branches. Naming the
-coordinate after the exact Spring Boot version it was built against
-makes the choice unambiguous: `wiretap-spring-boot-3.5.14-starter`
-means "wiretap built and tested against Spring Boot 3.5.14".
+and Spring Boot 4 ships Jackson 3 (`tools.jackson.*`) plus per-client
+module relocations — a single jar cannot satisfy all the active
+branches. Naming the coordinate after the exact Spring Boot version it
+was built against makes the choice unambiguous:
+`wiretap-spring-boot-4.0.6-starter` means "wiretap built and tested
+against Spring Boot 4.0.6".
 
-| Maven coordinates | Spring Boot target | Logback |
-|---|---|---|
-| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter` | 3.2.7 | 1.4 |
-| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter` | 3.4.5 | 1.5 |
-| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter` | 3.5.14 | 1.5 |
+| Maven coordinates | Spring Boot target | Logback | Jackson |
+|---|---|---|---|
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter` | 3.2.7 | 1.4 | 2 |
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter` | 3.4.5 | 1.5 | 2 |
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter` | 3.5.14 | 1.5 | 2 |
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-4.0.6-starter` | 4.0.6 | 1.5 | 3 |
 
-All three come from the same Git revision; the 3.4.5/3.5.14
+All four come from the same Git revision. The 3.4.5 / 3.5.14
 subprojects apply a Copy-with-filter task that rewrites
 `ch.qos.logback.access.spi.IAccessEvent` to
 `ch.qos.logback.access.common.spi.IAccessEvent` in the canonical
-sources. Pick the coordinate that matches your Spring Boot patch
-version. If the matrix advances to a new patch (e.g. 3.5.14 → 3.5.15),
-a new coordinate is published; the previous one stays available on
-Maven Central as the last build for that exact Spring Boot.
+sources. The 4.0.6 subproject combines a slightly broader Copy-with-filter
+(Spring Boot 4 client-module relocations) with hand-written Jackson 3
+overlays in its own `src/main/java/`, because the Jackson 2 → 3
+migration touches APIs (`JsonNode.fields()`/`elements()` returning
+collections instead of `Iterator`, immutable `ObjectMapper`,
+`JsonGenerator.writeXxxField` → `writeXxxProperty`) that a text rewrite
+cannot patch cleanly. Pick the coordinate that matches your Spring Boot
+patch version. If the matrix advances to a new patch (e.g. 3.5.14 →
+3.5.15), a new coordinate is published; the previous one stays
+available on Maven Central as the last build for that exact Spring
+Boot.
 
 > **Deprecated:** `io.github.alexander-kuznetsov:wiretap` (without the
 > `-spring-boot-X.Y.Z-starter` suffix) covers releases `0.1.4`–`0.1.6`
@@ -37,17 +47,9 @@ The build accepts two Gradle properties to switch the matrix cell:
 ./gradlew test -PspringBootVersion=3.5.14 -PjavaToolchain=21
 ```
 
-Without `-PspringBootVersion` all three SB-version subprojects build
+Without `-PspringBootVersion` all four SB-version subprojects build
 together (used by the release workflow). With the property only the
-matching subproject runs; the other two are SKIPPED.
-
-> **WIP — Spring Boot 4.0.6** support is scaffolded as a
-> `wiretap-spring-boot-4.0.6-starter` subproject but currently disabled
-> via `isActive = false` in its `build.gradle.kts`. Spring Boot 4 brings
-> Jackson 3 (`tools.jackson.*`), which renamed several `JsonNode` methods
-> (`fields()` → `properties()`, `elements()` → `values()`) and made
-> `ObjectMapper` immutable; a clean migration cannot be done through the
-> source-rewrite Copy task alone. Tracked under a follow-up SSNC.
+matching subproject runs; the other three are SKIPPED.
 
 ## Supported matrix
 
@@ -56,6 +58,7 @@ matching subproject runs; the other two are SKIPPED.
 | `wiretap-spring-boot-3.2.7-starter`       | 3.2.7 (baseline)  | 17, 21      | extended support — kept working for legacy consumers |
 | `wiretap-spring-boot-3.4.5-starter`       | 3.4.5             | 17, 21, 25  | actively tested |
 | `wiretap-spring-boot-3.5.14-starter`      | 3.5.14            | 17, 21, 25  | actively tested, last 3.x minor |
+| `wiretap-spring-boot-4.0.6-starter`       | 4.0.6             | 17, 21, 25  | actively tested, first SB 4 / Jackson 3 line |
 
 `3.3.x` is **not** in the matrix — there were no relevant API breaks
 between 3.2 and 3.4/3.5 from wiretap's point of view, and 3.3 is out of
@@ -110,7 +113,10 @@ compatibility matrix.
 2. When the matrix gains a new Spring Boot patch version (or replaces
    an existing one with a newer patch), add or rename the matching
    `wiretap-spring-boot-X.Y.Z-starter` subproject — coordinates encode
-   the exact target patch.
+   the exact target patch. The 4.0.x subproject additionally carries
+   hand-written Jackson 3 overlays in `src/main/java/`; on a Boot 4 patch
+   bump check whether the overlay files need to be re-synced with the
+   root sources they shadow.
 3. Run `./scripts/test-compatibility.sh` locally before pushing — if a
    matrix cell breaks, fix the root cause or document the exception.
 
@@ -123,25 +129,35 @@ compatibility matrix.
 Wiretap публикуется в виде **одного артефакта на каждую тестируемую
 patch-версию Spring Boot**. Logback API сломал пакет `IAccessEvent`
 между 1.4 и 1.5 (а `logback-access-spring-boot-starter` сделал это в
-4.2.0), поэтому один jar не покрывает все активные ветки.
-Именование координаты по точной версии Spring Boot снимает
-неоднозначность: `wiretap-spring-boot-3.5.14-starter` значит «wiretap,
-собранный и протестированный против Spring Boot 3.5.14».
+4.2.0), а Spring Boot 4 принёс Jackson 3 (`tools.jackson.*`) и разнёс
+клиентские Customizer'ы по отдельным модулям, поэтому один jar не
+покрывает все активные ветки. Именование координаты по точной версии
+Spring Boot снимает неоднозначность:
+`wiretap-spring-boot-4.0.6-starter` значит «wiretap, собранный и
+протестированный против Spring Boot 4.0.6».
 
-| Maven-координаты | Spring Boot | Logback |
-|---|---|---|
-| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter` | 3.2.7 | 1.4 |
-| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter` | 3.4.5 | 1.5 |
-| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter` | 3.5.14 | 1.5 |
+| Maven-координаты | Spring Boot | Logback | Jackson |
+|---|---|---|---|
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter` | 3.2.7 | 1.4 | 2 |
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter` | 3.4.5 | 1.5 | 2 |
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter` | 3.5.14 | 1.5 | 2 |
+| `io.github.alexander-kuznetsov:wiretap-spring-boot-4.0.6-starter` | 4.0.6 | 1.5 | 3 |
 
-Все три собираются из одной git-ревизии; сабпроекты для 3.4.5 и
+Все четыре собираются из одной git-ревизии. Сабпроекты для 3.4.5 и
 3.5.14 применяют Copy-with-filter task, переименовывающий
 `ch.qos.logback.access.spi.IAccessEvent` в
 `ch.qos.logback.access.common.spi.IAccessEvent` в копии canonical-исходников.
-Подключайте координату, соответствующую вашей patch-версии Spring Boot.
-Когда матрица сдвигается на новый patch (например, 3.5.14 → 3.5.15),
-публикуется новая координата; предыдущая остаётся на Maven Central как
-последняя сборка под точно ту версию.
+Сабпроект 4.0.6 совмещает чуть более широкий Copy-with-filter (перенос
+клиентских Customizer'ов Spring Boot 4) с написанными руками
+Jackson 3-overlay-копиями в собственном `src/main/java/` — миграция
+Jackson 2 → 3 затрагивает API (`JsonNode.fields()`/`elements()` теперь
+возвращают коллекции вместо `Iterator`, `ObjectMapper` стал immutable,
+`JsonGenerator.writeXxxField` переименован в `writeXxxProperty`),
+которые текстовый rewrite чисто не покрывает. Подключайте координату,
+соответствующую вашей patch-версии Spring Boot. Когда матрица сдвигается
+на новый patch (например, 3.5.14 → 3.5.15), публикуется новая
+координата; предыдущая остаётся на Maven Central как последняя сборка
+под точно ту версию.
 
 > **Deprecated:** `io.github.alexander-kuznetsov:wiretap` (без суффикса
 > `-spring-boot-X.Y.Z-starter`) — это релизы `0.1.4`–`0.1.6`, остаются
@@ -155,17 +171,9 @@ patch-версию Spring Boot**. Logback API сломал пакет `IAccessEv
 ./gradlew test -PspringBootVersion=3.5.14 -PjavaToolchain=21
 ```
 
-Без `-PspringBootVersion` собираются все три сабпроекта одновременно
+Без `-PspringBootVersion` собираются все четыре сабпроекта одновременно
 (этот режим использует release-workflow). С property — прогоняется
-только соответствующий сабпроект, остальные два SKIPPED.
-
-> **WIP — Spring Boot 4.0.6.** В репозитории есть сабпроект
-> `wiretap-spring-boot-4.0.6-starter` как scaffolding, но он отключён
-> (`isActive = false` в `build.gradle.kts`). Spring Boot 4 приносит
-> Jackson 3 (`tools.jackson.*`), который переименовал ряд методов
-> `JsonNode` (`fields()` → `properties()`, `elements()` → `values()`)
-> и сделал `ObjectMapper` immutable; чистая миграция не покрывается
-> текстовым Copy-rewrite'ом. Отслеживается отдельной SSNC-задачей.
+только соответствующий сабпроект, остальные три SKIPPED.
 
 ## Поддерживаемая матрица
 
@@ -174,6 +182,7 @@ patch-версию Spring Boot**. Logback API сломал пакет `IAccessEv
 | `wiretap-spring-boot-3.2.7-starter`        | 3.2.7 (baseline)  | 17, 21      | extended support — для legacy-потребителей |
 | `wiretap-spring-boot-3.4.5-starter`        | 3.4.5             | 17, 21, 25  | активно тестируется |
 | `wiretap-spring-boot-3.5.14-starter`       | 3.5.14            | 17, 21, 25  | активно тестируется, последний 3.x минор |
+| `wiretap-spring-boot-4.0.6-starter`        | 4.0.6             | 17, 21, 25  | активно тестируется, первая SB 4 / Jackson 3 линия |
 
 `3.3.x` **не** включён в матрицу — между 3.2 и 3.4/3.5 не было
 breaking-изменений, релевантных wiretap, а сам 3.3 вышел из OSS-поддержки.
