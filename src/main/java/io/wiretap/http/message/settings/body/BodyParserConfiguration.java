@@ -1,5 +1,6 @@
 package io.wiretap.http.message.settings.body;
 
+import io.wiretap.metrics.WiretapMetrics;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -15,8 +16,9 @@ public class BodyParserConfiguration {
     @Bean
     public BodyParser bodyParser(
             @Autowired Optional<HttpBodyMaskingHandler> maskingHandler,
-            @Autowired List<HttpBodyMasker> bodyMaskers
+            @Autowired List<HttpBodyMasker> bodyMaskers,
+            @Autowired WiretapMetrics metrics
     ) {
-        return new DefaultBodyParser(maskingHandler.orElse(null), bodyMaskers);
+        return new DefaultBodyParser(maskingHandler.orElse(null), bodyMaskers, metrics);
     }
 }

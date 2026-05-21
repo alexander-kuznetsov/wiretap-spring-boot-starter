@@ -46,7 +46,7 @@ class WiretapRecordInterceptorTest {
     @SuppressWarnings("unchecked")
     void setUp() {
         interceptor = new WiretapRecordInterceptor<>(
-                new KafkaLogSink(new KafkaConsumerLogMessageSettings(), new KafkaAccessFieldNames(), null, null, null));
+                new KafkaLogSink(new KafkaConsumerLogMessageSettings(), new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
 
         sinkLogger = (Logger) LoggerFactory.getLogger(KafkaLogSink.class);
         appender = new ListAppender<>();
@@ -96,7 +96,7 @@ class WiretapRecordInterceptorTest {
         KafkaConsumerLogMessageSettings settings = new KafkaConsumerLogMessageSettings();
         settings.setExcludeTopicPatterns(List.of("orders\\..*"));
         WiretapRecordInterceptor<String, String> filtered = new WiretapRecordInterceptor<>(
-                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
 
         ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
         filtered.intercept(rec, consumer);
@@ -226,7 +226,7 @@ class WiretapRecordInterceptorTest {
         KafkaConsumerLogMessageSettings settings = new KafkaConsumerLogMessageSettings();
         settings.getVisibilitySettings().put(KafkaConfigurableField.DURATION, Boolean.FALSE);
         WiretapRecordInterceptor<String, String> hidden = new WiretapRecordInterceptor<>(
-                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
 
         ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
         hidden.intercept(rec, consumer);
@@ -243,7 +243,7 @@ class WiretapRecordInterceptorTest {
         settings.getVisibilitySettings().put(KafkaConfigurableField.KEY, Boolean.FALSE);
         settings.getVisibilitySettings().put(KafkaConfigurableField.VALUE, Boolean.FALSE);
         WiretapRecordInterceptor<String, String> hidden = new WiretapRecordInterceptor<>(
-                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
 
         ConsumerRecord<String, String> rec = record("k", "v", new RecordHeaders());
         hidden.intercept(rec, consumer);

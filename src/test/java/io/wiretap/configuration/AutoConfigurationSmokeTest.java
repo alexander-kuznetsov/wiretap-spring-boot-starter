@@ -3,11 +3,17 @@ package io.wiretap.configuration;
 import io.wiretap.http.incoming.provider.httpinfo.HttpInfoMessageProvider;
 import io.wiretap.http.incoming.provider.message.MessageProvider;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.tracing.Tracer;
 import io.wiretap.http.outgoing.interceptor.feignclient.FeignClientWrapper;
 import io.wiretap.http.outgoing.interceptor.rest.RestClientLoggingInterceptor;
 import io.wiretap.http.outgoing.interceptor.rest.RestTemplateLoggingInterceptor;
 import io.wiretap.http.outgoing.interceptor.webclient.WebClientLoggingFilter;
+import io.wiretap.metrics.NoOpWiretapMetrics;
+import io.wiretap.metrics.WiretapMetrics;
+import io.wiretap.metrics.WiretapMetricsImpl;
+import io.wiretap.metrics.WiretapMetricsProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
@@ -83,6 +89,56 @@ assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
                 .run(ctx -> assertThat(ctx).doesNotHaveBean(FeignClientWrapper.class));
     }
 
+    @Test
+    void wiretapMetricsBean_isNoOpWhenNoMeterRegistry() {
+        runner.run(ctx -> {
+            assertThat(ctx).hasSingleBean(WiretapMetrics.class);
+            assertThat(ctx.getBean(WiretapMetrics.class)).isInstanceOf(NoOpWiretapMetrics.class);
+        });
+    }
+
+    @Test
+    void wiretapMetricsBean_isImplWhenMeterRegistryPresent() {
+        runner
+                .withUserConfiguration(StubMeterRegistryConfig.class)
+                .run(ctx -> {
+                    assertThat(ctx).hasSingleBean(WiretapMetrics.class);
+                    assertThat(ctx.getBean(WiretapMetrics.class)).isInstanceOf(WiretapMetricsImpl.class);
+                    assertThat(ctx).hasSingleBean(WiretapMetricsProperties.class);
+                    assertThat(ctx.getBean(WiretapMetricsProperties.class).isEnabled()).isTrue();
+                });
+    }
+
+    @Test
+    void wiretapMetricsBean_isNoOpWhenDisabledViaProperty() {
+        runner
+                .withUserConfiguration(StubMeterRegistryConfig.class)
+                .withPropertyValues("wiretap.metrics.enabled=false")
+                .run(ctx -> {
+                    assertThat(ctx).hasSingleBean(WiretapMetrics.class);
+                    assertThat(ctx.getBean(WiretapMetrics.class)).isInstanceOf(NoOpWiretapMetrics.class);
+                });
+    }
+
+    @Test
+    void wiretapMetricsProperties_pickUpDetailedTimingsAndHistogramsOverrides() {
+        runner
+                .withUserConfiguration(StubMeterRegistryConfig.class)
+                .withPropertyValues(
+                        "wiretap.metrics.detailed-timings=true",
+                        "wiretap.metrics.histograms=true",
+                        "wiretap.metrics.tags.topic=true",
+                        "wiretap.metrics.tags.status=false"
+                )
+                .run(ctx -> {
+                    WiretapMetricsProperties props = ctx.getBean(WiretapMetricsProperties.class);
+                    assertThat(props.isDetailedTimings()).isTrue();
+                    assertThat(props.isHistograms()).isTrue();
+                    assertThat(props.getTags().isTopic()).isTrue();
+                    assertThat(props.getTags().isStatus()).isFalse();
+                });
+    }
+
     /**
      * The library wires {@code AccessLogTraceIdForwarder} from a {@link Tracer} bean.
      * Tests don't need a real tracer, just any non-null instance.
@@ -92,6 +148,14 @@ assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
         @Bean
         Tracer tracer() {
             return io.micrometer.tracing.Tracer.NOOP;
+        }
+    }
+
+    @Configuration
+    static class StubMeterRegistryConfig {
+        @Bean
+        MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
         }
     }
 }

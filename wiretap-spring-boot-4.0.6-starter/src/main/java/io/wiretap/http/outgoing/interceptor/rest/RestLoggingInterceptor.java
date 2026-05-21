@@ -26,6 +26,8 @@ import io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigura
 import io.wiretap.http.message.settings.RestLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
+import io.wiretap.metrics.BodyMetricsContext;
+import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
 
@@ -62,14 +64,17 @@ import org.jetbrains.annotations.Nullable;
 class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
     private static final Logger log = LoggerFactory.getLogger(RestLoggingInterceptor.class);
     private static final String HTTP_INFO_MDC_NAME = "HTTP-REQUEST-LOG";
+    private static final String DIRECTION = "outgoing";
     private final RestLogMessageSettings commonRestLogSettings;
     private final String clientName;
+    private final String clientTag;
     private final BodyParser bodyParser;
     private final HttpAccessFieldNames httpFieldNames;
     @Nullable
     private final HttpUrlMaskingHandler urlMaskingHandler;
     @Nullable
     private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
+    private final WiretapMetrics metrics;
     private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().build();
 
     public RestLoggingInterceptor(
@@ -78,14 +83,17 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
             String clientName,
             final HttpAccessFieldNames httpFieldNames,
             @Nullable HttpUrlMaskingHandler urlMaskingHandler,
-            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler,
+            WiretapMetrics metrics
     ) {
         this.commonRestLogSettings = logMessageSettings;
         this.bodyParser = bodyParser;
         this.clientName = clientName;
+        this.clientTag = clientName.toLowerCase(java.util.Locale.ROOT);
         this.httpFieldNames = httpFieldNames;
         this.urlMaskingHandler = urlMaskingHandler;
         this.paramsMaskingHandler = paramsMaskingHandler;
+        this.metrics = metrics;
     }
 
 
@@ -100,27 +108,73 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
         boolean shouldSkip = commonRestLogSettings.getExcludeRequestPatterns().stream() // TODO add local caching of the resolved decision
                 .anyMatch(requestURL::matches);
         if (shouldSkip) {
+            metrics.recordHttpSkipped(DIRECTION, clientTag, "exclude_pattern");
             return clientHttpRequestExecution.execute(httpRequest, bytes);
         }
 
+        final long startNanos = metrics.startSample();
         final HttpRequest requestWithAdditionalHeaders = setAdditionalHeaders(httpRequest);
         Optional<HttpMessageInfo> requestHttpInfoOptional = getRequestHttpInfo(bytes, requestWithAdditionalHeaders);
 
         final StopWatch requestStopWatch = new StopWatch();
         requestStopWatch.start();
-        final BufferingClientHttpResponseWrapper bufferingResponse = executeRestRequest(
-                bytes,
-                clientHttpRequestExecution,
-                requestWithAdditionalHeaders,
-                requestHttpInfoOptional,
-                requestStopWatch
-        );
+        final BufferingClientHttpResponseWrapper bufferingResponse;
+        try {
+            bufferingResponse = executeRestRequest(
+                    bytes,
+                    clientHttpRequestExecution,
+                    requestWithAdditionalHeaders,
+                    requestHttpInfoOptional,
+                    requestStopWatch
+            );
+        } catch (IOException e) {
+            metrics.recordHttpRequest(startNanos, DIRECTION, clientTag, "exception", "exception");
+            throw e;
+        }
         requestStopWatch.stop();
         Optional<HttpMessageInfo> fullHttpInfo = requestHttpInfoOptional.flatMap(requestHttpInfo ->
                 getResponseHttpInfo(requestHttpInfo, requestWithAdditionalHeaders, requestStopWatch.getTotalTimeMillis(), bufferingResponse)
         );
         fullHttpInfo.ifPresent(this::logRequest);
+
+        int status = -1;
+        try {
+            status = bufferingResponse.getStatusCode().value();
+        } catch (Exception ignored) { /* status unavailable */ }
+        metrics.recordHttpRequest(startNanos, DIRECTION, clientTag, outcomeOf(status), statusGroup(status));
+        recordBodySizes(httpRequest, bytes, bufferingResponse);
         return bufferingResponse;
+    }
+
+    private void recordBodySizes(HttpRequest httpRequest, byte[] requestBytes, BufferingClientHttpResponseWrapper response) {
+        try {
+            String reqClass = BodyMetricsContext.classify(getContentType(httpRequest.getHeaders()));
+            metrics.recordHttpBodySize(DIRECTION, clientTag, reqClass, "request", requestBytes == null ? 0L : requestBytes.length);
+        } catch (Exception ignored) { /* metrics must not break the hot path */ }
+        try {
+            String respClass = BodyMetricsContext.classify(getContentType(response.getHeaders()));
+            long bytes = response.getHeaders().getContentLength();
+            if (bytes >= 0) {
+                metrics.recordHttpBodySize(DIRECTION, clientTag, respClass, "response", bytes);
+            }
+        } catch (Exception ignored) { /* metrics must not break the hot path */ }
+    }
+
+    private static String outcomeOf(int status) {
+        if (status < 0) return "exception";
+        if (status >= 200 && status < 400) return "success";
+        if (status >= 400 && status < 500) return "client_error";
+        if (status >= 500 && status < 600) return "server_error";
+        return "other";
+    }
+
+    private static String statusGroup(int status) {
+        if (status < 0) return "exception";
+        if (status >= 200 && status < 300) return "2xx";
+        if (status >= 300 && status < 400) return "3xx";
+        if (status >= 400 && status < 500) return "4xx";
+        if (status >= 500 && status < 600) return "5xx";
+        return "other";
     }
 
     @NotNull
@@ -223,13 +277,16 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
      */
     private void logRequest(final HttpMessageInfo logMessage) {
         try {
+            long serStart = metrics.startSample();
             final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
+            metrics.recordJsonSerialization(serStart, "http", DIRECTION, clientTag);
 
             try (final MDC.MDCCloseable ignored = MDC.putCloseable(HTTP_INFO_MDC_NAME, stringLogMessage)) {
                 log.info("Captured outgoing rest request {}", getMaskedRequestUrl(logMessage.getRequestUrl()));
             }
         } catch (JacksonException e) {
             log.error("Error while logging {} http-info...", clientName, e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, clientTag, "serialize");
         }
     }
 

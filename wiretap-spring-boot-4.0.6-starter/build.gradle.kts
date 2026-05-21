@@ -126,6 +126,10 @@ dependencies {
 
     compileOnly("org.springframework.boot:spring-boot-starter-webflux")
     compileOnly("org.springframework.kafka:spring-kafka")
+    // Brings Micrometer's MeterRegistry / Timer / Counter API in at compile time.
+    // Runtime delivery is transitive — spring-boot-starter-actuator pulls it in,
+    // and consumers without actuator simply fall back to NoOpWiretapMetrics.
+    compileOnly("io.micrometer:micrometer-core")
 
     annotationProcessor("org.projectlombok:lombok:$lombokVersion")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
@@ -136,6 +140,7 @@ dependencies {
     testImplementation("org.springframework.kafka:spring-kafka")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.wiremock:wiremock-standalone:3.6.0")
+    testImplementation("io.micrometer:micrometer-core")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testCompileOnly("org.projectlombok:lombok:$lombokVersion")
     testAnnotationProcessor("org.projectlombok:lombok:$lombokVersion")

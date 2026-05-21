@@ -14,6 +14,8 @@ import io.wiretap.http.message.settings.WebClientLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.message.settings.body.HttpBodySettings;
 import io.wiretap.http.outgoing.interceptor.Supplier;
+import io.wiretap.metrics.BodyMetricsContext;
+import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
 import org.slf4j.Logger;
@@ -99,6 +101,8 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
     );
 
     static final String STREAMING_BODY_MARKER = "[streaming response — body not captured]";
+    private static final String CLIENT = "webclient";
+    private static final String DIRECTION = "outgoing";
 
     private final WebClientLogMessageSettings settings;
     private final BodyParser bodyParser;
@@ -107,6 +111,7 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
     private final HttpUrlMaskingHandler urlMaskingHandler;
     @Nullable
     private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
+    private final WiretapMetrics metrics;
     private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().build();
 
     public WebClientLoggingFilter(
@@ -114,13 +119,15 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
             BodyParser bodyParser,
             HttpAccessFieldNames httpFieldNames,
             @Nullable HttpUrlMaskingHandler urlMaskingHandler,
-            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler,
+            WiretapMetrics metrics
     ) {
         this.settings = settings;
         this.bodyParser = bodyParser;
         this.httpFieldNames = httpFieldNames;
         this.urlMaskingHandler = urlMaskingHandler;
         this.paramsMaskingHandler = paramsMaskingHandler;
+        this.metrics = metrics;
     }
 
     @Override
@@ -128,6 +135,7 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
         String requestUrl = request.url().toString();
 
         if (settings.getExcludeRequestPatterns().stream().anyMatch(requestUrl::matches)) {
+            metrics.recordHttpSkipped(DIRECTION, CLIENT, "exclude_pattern");
             return next.exchange(request);
         }
 
@@ -139,16 +147,19 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
 
         AtomicReference<String> capturedRequestBody = new AtomicReference<>("");
         long startTime = System.currentTimeMillis();
+        long startNanos = metrics.startSample();
 
         ClientRequest wrappedRequest = wrapRequestWithHeadersAndOptionalBodyCapture(
                 request, requestUrl, capturedRequestBody, captureRequestBody, maxBodyLength);
 
         return next.exchange(wrappedRequest)
                 .flatMap(response -> handleResponse(
-                        request, response, capturedRequestBody, startTime,
+                        request, response, capturedRequestBody, startTime, startNanos,
                         captureResponseBody, maxBodyLength))
                 .onErrorResume(ex -> {
                     logPartialRequest(request, capturedRequestBody.get(), startTime);
+                    metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, "exception", "exception");
+                    metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
                     return Mono.error(ex);
                 });
     }
@@ -183,7 +194,7 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
 
     private Mono<ClientResponse> handleResponse(
             ClientRequest request, ClientResponse response,
-            AtomicReference<String> capturedRequestBody, long startTime,
+            AtomicReference<String> capturedRequestBody, long startTime, long startNanos,
             boolean captureResponseBody, int maxCapture) {
 
         MediaType responseContentType = response.headers().contentType().orElse(null);
@@ -193,10 +204,15 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
             String marker = streaming ? STREAMING_BODY_MARKER : "";
             long elapsed = System.currentTimeMillis() - startTime;
             logFullRequest(request, capturedRequestBody.get(), response, marker, streaming, elapsed);
+            int status = response.statusCode().value();
+            metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, outcomeOf(status), statusGroup(status));
+            if (streaming) {
+                metrics.recordHttpSkipped(DIRECTION, CLIENT, "streaming");
+            }
             return Mono.just(response);
         }
 
-        return joinAndLogResponseBody(request, response, capturedRequestBody, startTime, maxCapture);
+        return joinAndLogResponseBody(request, response, capturedRequestBody, startTime, startNanos, maxCapture);
     }
 
     /**
@@ -210,7 +226,7 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
      */
     private Mono<ClientResponse> joinAndLogResponseBody(
             ClientRequest request, ClientResponse response,
-            AtomicReference<String> capturedRequestBody, long startTime, int maxCapture) {
+            AtomicReference<String> capturedRequestBody, long startTime, long startNanos, int maxCapture) {
 
         return DataBufferUtils.join(response.body(BodyExtractors.toDataBuffers()))
                 .defaultIfEmpty(DefaultDataBufferFactory.sharedInstance.wrap(new byte[0]))
@@ -228,15 +244,43 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
                             captured += CaptureBodyClientHttpRequest.TRUNCATED_MARKER;
                         }
                         long elapsed = System.currentTimeMillis() - startTime;
+                        MediaType responseContentType = response.headers().contentType().orElse(null);
                         logFullRequest(request, capturedRequestBody.get(), response, captured, truncated, elapsed);
+
+                        int status = response.statusCode().value();
+                        metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, outcomeOf(status), statusGroup(status));
+                        metrics.recordHttpBodySize(DIRECTION, CLIENT,
+                                BodyMetricsContext.classify(responseContentType), "response", total);
+                        long requestBodyLength = request.headers().getContentLength();
+                        if (requestBodyLength >= 0) {
+                            metrics.recordHttpBodySize(DIRECTION, CLIENT,
+                                    BodyMetricsContext.classify(request.headers().getContentType()),
+                                    "request", requestBodyLength);
+                        }
 
                         DataBuffer replay = DefaultDataBufferFactory.sharedInstance.wrap(all);
                         return Mono.just(response.mutate().body(Flux.just(replay)).build());
                     } catch (Exception e) {
                         DataBufferUtils.release(joined);
+                        metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
                         return Mono.error(e);
                     }
                 });
+    }
+
+    private static String outcomeOf(int status) {
+        if (status >= 200 && status < 400) return "success";
+        if (status >= 400 && status < 500) return "client_error";
+        if (status >= 500 && status < 600) return "server_error";
+        return "other";
+    }
+
+    private static String statusGroup(int status) {
+        if (status >= 200 && status < 300) return "2xx";
+        if (status >= 300 && status < 400) return "3xx";
+        if (status >= 400 && status < 500) return "4xx";
+        if (status >= 500 && status < 600) return "5xx";
+        return "other";
     }
 
     private static boolean isStreaming(MediaType contentType) {
@@ -332,13 +376,16 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
 
     private void logToMdc(HttpMessageInfo info) {
         try {
+            long serStart = metrics.startSample();
             String json = objectMapper.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(info.toMap(httpFieldNames));
+            metrics.recordJsonSerialization(serStart, "http", DIRECTION, CLIENT);
             try (MDC.MDCCloseable ignored = MDC.putCloseable(HTTP_INFO_MDC_NAME, json)) {
                 log.info("Captured outgoing webclient request {}", maskedUrl(info.getRequestUrl()));
             }
         } catch (JacksonException e) {
             log.error("Error serialising WebClient http-info", e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "serialize");
         }
     }
 

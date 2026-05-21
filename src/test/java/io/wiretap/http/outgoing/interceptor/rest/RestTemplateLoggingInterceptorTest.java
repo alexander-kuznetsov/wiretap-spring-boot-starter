@@ -101,7 +101,7 @@ class RestTemplateLoggingInterceptorTest {
         RestTemplateLogMessageSettings settings = new RestTemplateLogMessageSettings();
         settings.setExcludeRequestPatterns(java.util.List.of(".*/actuator/.*"));
         RestTemplateLoggingInterceptor interceptor = new RestTemplateLoggingInterceptor(
-                settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
+                settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null, new io.wiretap.metrics.NoOpWiretapMetrics());
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.getInterceptors().add(interceptor);
 
@@ -141,7 +141,7 @@ class RestTemplateLoggingInterceptorTest {
         RestTemplateLogMessageSettings settings = new RestTemplateLogMessageSettings();
         settings.setResponseHeaders(java.util.List.of("*"));
         RestTemplateLoggingInterceptor interceptor = new RestTemplateLoggingInterceptor(
-                settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null);
+                settings, new DefaultBodyParser(null), new HttpAccessFieldNames(), null, null, new io.wiretap.metrics.NoOpWiretapMetrics());
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.getInterceptors().add(interceptor);
 
@@ -160,7 +160,7 @@ class RestTemplateLoggingInterceptorTest {
         RestTemplateLogMessageSettings settings = new RestTemplateLogMessageSettings();
         settings.getHttpBodySettings().setEnableBodyTruncating(false);
         RestTemplateLoggingInterceptor interceptor = new RestTemplateLoggingInterceptor(
-                settings, new DefaultBodyParser(null), fieldNames, null, null);
+                settings, new DefaultBodyParser(null), fieldNames, null, null, new io.wiretap.metrics.NoOpWiretapMetrics());
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.getInterceptors().add(interceptor);
         return restTemplate;

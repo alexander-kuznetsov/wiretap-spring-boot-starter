@@ -2,6 +2,7 @@ package io.wiretap.kafka.producer;
 
 import io.wiretap.kafka.KafkaLogSink;
 import io.wiretap.kafka.message.KafkaMessageInfo;
+import io.wiretap.metrics.WiretapMetrics;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.springframework.kafka.support.ProducerListener;
@@ -31,10 +32,14 @@ import java.nio.charset.StandardCharsets;
  */
 public class WiretapProducerListener implements ProducerListener<Object, Object> {
 
+    private static final String DIRECTION = "producer";
+
     private final KafkaLogSink sink;
+    private final WiretapMetrics metrics;
 
     public WiretapProducerListener(KafkaLogSink sink) {
         this.sink = sink;
+        this.metrics = sink.getMetrics();
     }
 
     @Override
@@ -50,8 +55,12 @@ public class WiretapProducerListener implements ProducerListener<Object, Object>
     private void emit(ProducerRecord<Object, Object> record, RecordMetadata metadata,
                       KafkaMessageInfo.Status status, Exception exception) {
         if (record == null) return;
+        long startNanos = metrics.startSample();
         try {
-            if (!sink.isTopicLogged(record.topic())) return;
+            if (!sink.isTopicLogged(record.topic())) {
+                metrics.recordKafkaSkipped(DIRECTION, "exclude_topic");
+                return;
+            }
 
             Integer partition = record.partition();
             if (metadata != null) {
@@ -94,6 +103,8 @@ public class WiretapProducerListener implements ProducerListener<Object, Object>
                     .errorMessage(exception == null ? null : exception.getMessage())
                     .build();
             sink.emit(info);
+            metrics.recordKafkaMessage(startNanos, DIRECTION,
+                    status == KafkaMessageInfo.Status.SUCCESS ? "success" : "error", record.topic());
         } catch (Exception ignored) {
             // never break the producer hot path
         }

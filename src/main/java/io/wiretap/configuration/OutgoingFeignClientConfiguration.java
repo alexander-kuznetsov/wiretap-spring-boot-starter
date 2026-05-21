@@ -7,6 +7,7 @@ import io.wiretap.http.message.settings.FeignClientMessageSettings;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.feignclient.FeignClientWrapper;
+import io.wiretap.metrics.WiretapMetrics;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -22,7 +23,9 @@ public class OutgoingFeignClientConfiguration {
     public Client loggingFeignClient(
             BodyParser bodyParser, FeignClientMessageSettings settings, HttpAccessFieldNames httpFieldNames,
             @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler,
-            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler) {
-        return new FeignClientWrapper(new Client.Default(null, null), bodyParser, settings, httpFieldNames, urlMaskingHandler, paramsMaskingHandler);
+            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler,
+            WiretapMetrics metrics) {
+        return new FeignClientWrapper(new Client.Default(null, null), bodyParser, settings, httpFieldNames,
+                urlMaskingHandler, paramsMaskingHandler, metrics);
     }
 }

@@ -7,6 +7,24 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 ## [Unreleased]
 
 ### Added
+- Micrometer metrics for wiretap's own processing pipeline. When a
+  `MeterRegistry` bean is present in the Spring context (typically through
+  `spring-boot-starter-actuator`), wiretap publishes per-direction overhead
+  timers, request / skip counters and body-size distributions for every
+  client it instruments (`servlet` / `webclient` / `restclient` /
+  `resttemplate` / `feign` / `webservicetemplate`) and for Kafka producer /
+  consumer paths. `wiretap.metrics.detailed-timings=true` adds phase-level
+  timers (parse / mask / truncate / serialize) and a per-`HttpBodyMasker`
+  invocation timer; `wiretap.metrics.histograms=true` enables percentile
+  histograms (p50 / p95 / p99) on every timer. When wiretap is wrapping
+  Logback appenders in `AsyncAppender`
+  (`wiretap.async-logging.enabled=true`), three gauges expose the queue
+  pressure: `wiretap.async.appender.queue.size`,
+  `wiretap.async.appender.queue.capacity`,
+  `wiretap.async.appender.queue.remaining`. Without a `MeterRegistry` or
+  with `wiretap.metrics.enabled=false`, the library installs a no-op
+  implementation and does not pull Micrometer onto the classpath.
+
 - One Maven Central artifact per tested Spring Boot patch version,
   built from the same revision through per-subproject Copy-with-filter
   source rewriting:

@@ -3,6 +3,9 @@ package io.wiretap.http.message.settings.body;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.wiretap.metrics.BodyMetricsContext;
+import io.wiretap.metrics.NoOpWiretapMetrics;
+import io.wiretap.metrics.WiretapMetrics;
 import org.apache.commons.lang3.function.TriFunction;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
@@ -25,15 +28,23 @@ public class DefaultBodyParser implements BodyParser {
     @Nullable
     private final HttpBodyMaskingHandler maskingHandler;
     private final List<HttpBodyMasker> bodyMaskers;
+    private final WiretapMetrics metrics;
 
     public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler) {
-        this(maskingHandler, Collections.emptyList());
+        this(maskingHandler, Collections.emptyList(), new NoOpWiretapMetrics());
     }
 
     public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler,
                              List<HttpBodyMasker> bodyMaskers) {
+        this(maskingHandler, bodyMaskers, new NoOpWiretapMetrics());
+    }
+
+    public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler,
+                             List<HttpBodyMasker> bodyMaskers,
+                             WiretapMetrics metrics) {
         this.maskingHandler = maskingHandler;
         this.bodyMaskers = bodyMaskers == null ? Collections.emptyList() : bodyMaskers;
+        this.metrics = metrics == null ? new NoOpWiretapMetrics() : metrics;
     }
     private static final String NOT_SUPPORTED_TYPE = "Logging of content type %s is not supported";
     private static final String LIMIT_EXCEEDED = "body exceeds the configured limit of %d characters";
@@ -117,21 +128,35 @@ public class DefaultBodyParser implements BodyParser {
         final boolean isTruncated = httpBodySettings.isEnableBodyTruncating();
         if (MediaType.APPLICATION_JSON.isCompatibleWith(contentType)) {
             return tryJson(bodyString)
-                    .map(jsonNode -> isTruncated ?
-                            HttpBodyUtils.truncateAllHugeFieldsInJson(jsonNode, httpBodySettings.getMaxFieldLength()) : jsonNode
-                    ).orElse(new TextNode(bodyString));
+                    .map(jsonNode -> {
+                        if (!isTruncated) {
+                            return jsonNode;
+                        }
+                        long truncStart = metrics.startSample();
+                        JsonNode truncated = HttpBodyUtils.truncateAllHugeFieldsInJson(jsonNode, httpBodySettings.getMaxFieldLength());
+                        metrics.recordPhase(truncStart, contextOf(contentType), "truncate");
+                        return truncated;
+                    }).orElse(new TextNode(bodyString));
         } else {
             return new TextNode(bodyString);
         }
     }
 
     private Optional<JsonNode> tryJson(final String bodyString) {
+        long parseStart = metrics.startSample();
         try {
-            return Optional.of(objectMapper.readTree(bodyString));
+            JsonNode node = objectMapper.readTree(bodyString);
+            metrics.recordPhase(parseStart, BodyMetricsContext.NONE, "parse");
+            return Optional.of(node);
 
         } catch (IOException e) {
+            metrics.recordPhase(parseStart, BodyMetricsContext.NONE, "parse");
             return Optional.empty();
         }
+    }
+
+    private static BodyMetricsContext contextOf(MediaType contentType) {
+        return new BodyMetricsContext("unknown", "unknown", BodyMetricsContext.classify(contentType));
     }
 
     protected String beforeParseRequestBody(final String body, final String requestUrl) {
@@ -164,16 +189,20 @@ public class DefaultBodyParser implements BodyParser {
         if (body == null || !settings.isEnableBodyMasking()) {
             return body;
         }
+        long maskStart = metrics.startSample();
         JsonNode masked = body;
         for (HttpBodyMasker m : bodyMaskers) {
             if (m.appliesTo(requestUrl)) {
+                long maskerStart = metrics.startSample();
                 masked = m.mask(masked);
+                metrics.recordBodyMaskerInvocation(maskerStart, m.getClass().getName(), "unknown");
                 break;
             }
         }
         if (maskingHandler != null) {
             masked = HttpBodyUtils.maskFieldsInBody(masked, maskingHandler::maskBodyField);
         }
+        metrics.recordPhase(maskStart, BodyMetricsContext.NONE, "mask");
         return masked;
     }
 }

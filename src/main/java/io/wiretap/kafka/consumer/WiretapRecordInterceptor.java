@@ -2,6 +2,7 @@ package io.wiretap.kafka.consumer;
 
 import io.wiretap.kafka.KafkaLogSink;
 import io.wiretap.kafka.message.KafkaMessageInfo;
+import io.wiretap.metrics.WiretapMetrics;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.MetricName;
@@ -39,11 +40,15 @@ import java.nio.charset.StandardCharsets;
  */
 public class WiretapRecordInterceptor<K, V> implements RecordInterceptor<K, V> {
 
+    private static final String DIRECTION = "consumer";
+
     private final KafkaLogSink sink;
+    private final WiretapMetrics metrics;
     private final ThreadLocal<RecordContext> contextHolder = new ThreadLocal<>();
 
     public WiretapRecordInterceptor(KafkaLogSink sink) {
         this.sink = sink;
+        this.metrics = sink.getMetrics();
     }
 
     @Override
@@ -80,8 +85,16 @@ public class WiretapRecordInterceptor<K, V> implements RecordInterceptor<K, V> {
 
     private void emitProcessed(ConsumerRecord<K, V> record, Consumer<K, V> consumer,
                                KafkaMessageInfo.Status status, Exception exception) {
+        long callbackNanos = metrics.startSample();
         try {
-            if (record == null || !sink.isTopicLogged(record.topic())) return;
+            if (record == null) {
+                metrics.recordKafkaSkipped(DIRECTION, "null_record");
+                return;
+            }
+            if (!sink.isTopicLogged(record.topic())) {
+                metrics.recordKafkaSkipped(DIRECTION, "exclude_topic");
+                return;
+            }
 
             RecordContext ctx = contextHolder.get();
             Long duration = ctx == null ? null : (System.nanoTime() - ctx.startNanos) / 1_000_000L;
@@ -93,10 +106,14 @@ public class WiretapRecordInterceptor<K, V> implements RecordInterceptor<K, V> {
                          MDC.MDCCloseable p = MDC.putCloseable("spanId", trace.spanId())) {
                         emit(record, consumer, status, exception, duration);
                     }
+                    metrics.recordKafkaMessage(callbackNanos, DIRECTION,
+                            status == KafkaMessageInfo.Status.SUCCESS ? "success" : "error", record.topic());
                     return;
                 }
             }
             emit(record, consumer, status, exception, duration);
+            metrics.recordKafkaMessage(callbackNanos, DIRECTION,
+                    status == KafkaMessageInfo.Status.SUCCESS ? "success" : "error", record.topic());
         } catch (Exception ignored) {
             // never break the consumer hot path
         }

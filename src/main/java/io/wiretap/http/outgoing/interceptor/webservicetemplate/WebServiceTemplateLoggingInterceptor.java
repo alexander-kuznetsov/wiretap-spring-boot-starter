@@ -24,6 +24,7 @@ import io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigura
 import io.wiretap.http.message.settings.WebServiceTemplateLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
+import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
 
@@ -64,29 +65,36 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
     private static final Logger log = LoggerFactory.getLogger(WebServiceTemplateLoggingInterceptor.class);
     private static final String CUSTOM_LOG_MESSAGE = "HTTP-REQUEST-LOG";
     private static final String STARTED_AT = "startTime";
+    private static final String METRICS_START_NANOS = "wiretapMetricsStartNanos";
+    private static final String CLIENT = "webservicetemplate";
+    private static final String DIRECTION = "outgoing";
     private final WebServiceTemplateLogMessageSettings soapLogSettings;
     private final BodyParser bodyParser;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpAccessFieldNames httpFieldNames;
     @Nullable
     private final HttpUrlMaskingHandler urlMaskingHandler;
+    private final WiretapMetrics metrics;
 
     public WebServiceTemplateLoggingInterceptor(
             WebServiceTemplateLogMessageSettings soapLogSettings,
             BodyParser bodyParser,
             HttpAccessFieldNames httpFieldNames,
-            @Nullable HttpUrlMaskingHandler urlMaskingHandler
+            @Nullable HttpUrlMaskingHandler urlMaskingHandler,
+            WiretapMetrics metrics
     ) {
         this.soapLogSettings = soapLogSettings;
         this.bodyParser = bodyParser;
         this.httpFieldNames = httpFieldNames;
         this.urlMaskingHandler = urlMaskingHandler;
+        this.metrics = metrics;
     }
 
     @Override
     public boolean handleRequest(MessageContext messageContext) {
         long startTime = System.currentTimeMillis();
         messageContext.setProperty(STARTED_AT, startTime);
+        messageContext.setProperty(METRICS_START_NANOS, metrics.startSample());
 
         final TransportContext context = TransportContextHolder.getTransportContext();
         if (context.getConnection() instanceof ClientHttpRequestConnection connection) {
@@ -128,17 +136,17 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
     public void afterCompletion(MessageContext messageContext, Exception ex) throws WebServiceClientException {
         if (ex != null) {
             log.error("An error occurred during the execution of the soap request", ex);
-            logHttpInfo(messageContext);
+            logHttpInfo(messageContext, true);
         }
     }
 
     @Override
     public boolean handleResponse(MessageContext messageContext) throws WebServiceClientException {
-        logHttpInfo(messageContext);
+        logHttpInfo(messageContext, false);
         return true;
     }
 
-    private void logHttpInfo(MessageContext messageContext) {
+    private void logHttpInfo(MessageContext messageContext, boolean failure) {
         try {
             long startTime = (long) messageContext.getProperty(STARTED_AT);
             long duration = System.currentTimeMillis() - startTime;
@@ -146,9 +154,46 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
             final HttpMessageInfo httpMessageInfo = getLogMessage(messageContext, duration);
             logRequest(httpMessageInfo);
 
+            Object startNanosObj = messageContext.getProperty(METRICS_START_NANOS);
+            if (startNanosObj instanceof Long startNanos) {
+                if (httpMessageInfo == null) {
+                    metrics.recordHttpSkipped(DIRECTION, CLIENT, "exclude_pattern");
+                } else {
+                    int status = httpMessageInfo.getReturnCode() == null ? -1 : httpMessageInfo.getReturnCode();
+                    String outcome = failure ? "exception" : outcomeOf(status);
+                    String statusGroup = failure ? "exception" : statusGroup(status);
+                    metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, outcome, statusGroup);
+                    Long reqLen = httpMessageInfo.getRequestBodyLength();
+                    Long respLen = httpMessageInfo.getResponseBodyLength();
+                    if (reqLen != null && reqLen >= 0) {
+                        metrics.recordHttpBodySize(DIRECTION, CLIENT, "xml", "request", reqLen);
+                    }
+                    if (respLen != null && respLen >= 0) {
+                        metrics.recordHttpBodySize(DIRECTION, CLIENT, "xml", "response", respLen);
+                    }
+                }
+            }
         } catch (Exception e) {
             log.error("Error while providing to log web-service-template http-info...", e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
         }
+    }
+
+    private static String outcomeOf(int status) {
+        if (status < 0) return "exception";
+        if (status >= 200 && status < 400) return "success";
+        if (status >= 400 && status < 500) return "client_error";
+        if (status >= 500 && status < 600) return "server_error";
+        return "other";
+    }
+
+    private static String statusGroup(int status) {
+        if (status < 0) return "exception";
+        if (status >= 200 && status < 300) return "2xx";
+        if (status >= 300 && status < 400) return "3xx";
+        if (status >= 400 && status < 500) return "4xx";
+        if (status >= 500 && status < 600) return "5xx";
+        return "other";
     }
 
     private HttpMessageInfo getLogMessage(MessageContext messageContext, long duration) throws URISyntaxException, IOException {
@@ -245,7 +290,12 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
      * @param logMessage SOAP request/response info
      */
     private void logRequest(final HttpMessageInfo logMessage) throws IOException {
+        if (logMessage == null) {
+            return;
+        }
+        long serStart = metrics.startSample();
         final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
+        metrics.recordJsonSerialization(serStart, "http", DIRECTION, CLIENT);
 
         try (final MDC.MDCCloseable ignored = MDC.putCloseable(CUSTOM_LOG_MESSAGE, stringLogMessage)) {
             log.info("Captured outgoing soap request {}", getMaskedRequestUrl(logMessage.getRequestUrl()));

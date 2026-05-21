@@ -26,6 +26,8 @@ import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
+import io.wiretap.metrics.BodyMetricsContext;
+import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
 
@@ -52,6 +54,8 @@ import static io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpCo
 import static io.wiretap.util.HttpBodyUtils.getStringBody;
 @Slf4j
 public class FeignClientWrapper implements Client {
+    private static final String CLIENT = "feign";
+    private static final String DIRECTION = "outgoing";
     private final Client delegate;
     private final BodyParser bodyParser;
     private final FeignClientMessageSettings commonRestLogSettings;
@@ -60,6 +64,7 @@ public class FeignClientWrapper implements Client {
     private final HttpUrlMaskingHandler urlMaskingHandler;
     @Nullable
     private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
+    private final WiretapMetrics metrics;
 
     public FeignClientWrapper(
             Client delegate,
@@ -67,7 +72,8 @@ public class FeignClientWrapper implements Client {
             FeignClientMessageSettings commonRestLogSettings,
             HttpAccessFieldNames httpFieldNames,
             @Nullable HttpUrlMaskingHandler urlMaskingHandler,
-            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler,
+            WiretapMetrics metrics
     ) {
         this.delegate = delegate;
         this.bodyParser = bodyParser;
@@ -75,6 +81,7 @@ public class FeignClientWrapper implements Client {
         this.httpFieldNames = httpFieldNames;
         this.urlMaskingHandler = urlMaskingHandler;
         this.paramsMaskingHandler = paramsMaskingHandler;
+        this.metrics = metrics;
     }
     private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().build();
     private static final String HTTP_INFO_MDC_NAME = "HTTP-REQUEST-LOG";
@@ -87,15 +94,23 @@ public class FeignClientWrapper implements Client {
                 .anyMatch(requestURL::matches);
 
         if (shouldSkip) {
+            metrics.recordHttpSkipped(DIRECTION, CLIENT, "exclude_pattern");
             return delegate.execute(request, options);
         }
+        final long startNanos = metrics.startSample();
         final Request requestWithAdditionalHeaders = setAdditionalHeaders(request);
 
         Optional<HttpMessageInfo> requestHttpInfoOptional = getRequestHttpInfo(request);
 
         final StopWatch requestStopWatch = new StopWatch();
         requestStopWatch.start();
-        final Response bufferedResponse = getBufferedResponse(request, options, requestHttpInfoOptional, requestStopWatch);
+        final Response bufferedResponse;
+        try {
+            bufferedResponse = getBufferedResponse(request, options, requestHttpInfoOptional, requestStopWatch);
+        } catch (IOException | RuntimeException e) {
+            metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, "exception", "exception");
+            throw e;
+        }
         requestStopWatch.stop();
 
         Optional<HttpMessageInfo> fullHttpInfo = requestHttpInfoOptional.flatMap(requestHttpInfo ->
@@ -103,7 +118,46 @@ public class FeignClientWrapper implements Client {
         );
         fullHttpInfo.ifPresent(this::logRequest);
 
+        int status = bufferedResponse.status();
+        metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, outcomeOf(status), statusGroup(status));
+        recordBodySizes(request, bufferedResponse);
+
         return bufferedResponse;
+    }
+
+    private void recordBodySizes(Request request, Response response) {
+        try {
+            long reqLen = getContentLength(request.headers());
+            if (reqLen >= 0) {
+                metrics.recordHttpBodySize(DIRECTION, CLIENT,
+                        BodyMetricsContext.classify(getContentType(request.headers())), "request", reqLen);
+            } else if (request.body() != null) {
+                metrics.recordHttpBodySize(DIRECTION, CLIENT,
+                        BodyMetricsContext.classify(getContentType(request.headers())), "request", request.body().length);
+            }
+        } catch (Exception ignored) { /* metrics must not break the hot path */ }
+        try {
+            long respLen = getContentLength(response.headers());
+            if (respLen >= 0) {
+                metrics.recordHttpBodySize(DIRECTION, CLIENT,
+                        BodyMetricsContext.classify(getContentType(response.headers())), "response", respLen);
+            }
+        } catch (Exception ignored) { /* metrics must not break the hot path */ }
+    }
+
+    private static String outcomeOf(int status) {
+        if (status >= 200 && status < 400) return "success";
+        if (status >= 400 && status < 500) return "client_error";
+        if (status >= 500 && status < 600) return "server_error";
+        return "other";
+    }
+
+    private static String statusGroup(int status) {
+        if (status >= 200 && status < 300) return "2xx";
+        if (status >= 300 && status < 400) return "3xx";
+        if (status >= 400 && status < 500) return "4xx";
+        if (status >= 500 && status < 600) return "5xx";
+        return "other";
     }
 
     @NotNull
@@ -288,13 +342,16 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
      */
     private void logRequest(final HttpMessageInfo logMessage) {
         try {
+            long serStart = metrics.startSample();
             final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
+            metrics.recordJsonSerialization(serStart, "http", DIRECTION, CLIENT);
 
             try (final MDC.MDCCloseable ignored = MDC.putCloseable(HTTP_INFO_MDC_NAME, stringLogMessage)) {
                 log.info("Captured outgoing feign-client request {}", getMaskedRequestUrl(logMessage.getRequestUrl()));
             }
         } catch (JacksonException e) {
             log.error("Error while logging feign-client http-info...", e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "serialize");
         }
     }
 }

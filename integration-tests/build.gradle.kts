@@ -44,6 +44,9 @@ dependencies {
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
+    // Actuator brings in micrometer-core + autoconfigures a MeterRegistry, which
+    // activates wiretap's metrics autoconfiguration end-to-end for these tests.
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     // SB 4 moved KafkaAutoConfiguration out of spring-boot-autoconfigure into
     // the dedicated spring-boot-kafka module; spring-boot-starter-kafka bundles
     // both the autoconfig and spring-kafka itself. On older Spring Boot lines

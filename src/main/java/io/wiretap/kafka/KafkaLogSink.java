@@ -9,6 +9,8 @@ import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
 import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings;
 import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings.KafkaConfigurableField;
 import io.wiretap.kafka.message.settings.body.MessageBodySettings;
+import io.wiretap.metrics.NoOpWiretapMetrics;
+import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +45,7 @@ public class KafkaLogSink {
     private final KafkaHeaderMaskingHandler headerMaskingHandler;
     @Nullable
     private final KafkaTopicMaskingHandler topicMaskingHandler;
+    private final WiretapMetrics metrics;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public KafkaLogSink(
@@ -50,13 +53,20 @@ public class KafkaLogSink {
             KafkaAccessFieldNames fieldNames,
             @Nullable KafkaValueMaskingHandler valueMaskingHandler,
             @Nullable KafkaHeaderMaskingHandler headerMaskingHandler,
-            @Nullable KafkaTopicMaskingHandler topicMaskingHandler
+            @Nullable KafkaTopicMaskingHandler topicMaskingHandler,
+            WiretapMetrics metrics
     ) {
         this.settings = settings;
         this.fieldNames = fieldNames;
         this.valueMaskingHandler = valueMaskingHandler;
         this.headerMaskingHandler = headerMaskingHandler;
         this.topicMaskingHandler = topicMaskingHandler;
+        this.metrics = metrics == null ? new NoOpWiretapMetrics() : metrics;
+    }
+
+    /** Exposes the metrics facade so {@code WiretapProducerListener} / {@code WiretapRecordInterceptor} share one Timer registry. */
+    public WiretapMetrics getMetrics() {
+        return metrics;
     }
 
     /**
@@ -73,8 +83,14 @@ public class KafkaLogSink {
      * Applies masking, truncation and per-topic overrides.
      */
     public void emit(KafkaMessageInfo info) {
+        String direction = info != null && info.getDirection() == KafkaMessageInfo.Direction.OUTGOING ? "producer" : "consumer";
         try {
-            if (info.getTopic() == null || !isTopicLogged(info.getTopic())) {
+            if (info == null || info.getTopic() == null) {
+                metrics.recordKafkaSkipped(direction, info == null ? "null_record" : "null_topic");
+                return;
+            }
+            if (!isTopicLogged(info.getTopic())) {
+                metrics.recordKafkaSkipped(direction, "exclude_topic");
                 return;
             }
 
@@ -82,10 +98,15 @@ public class KafkaLogSink {
             final FieldVisibilityMap<KafkaConfigurableField> visibility = effective.getVisibilitySettings();
 
             final KafkaMessageInfo masked = applyVisibilityAndMasking(info, effective, visibility);
+            long serStart = metrics.startSample();
             final String json = mapper.writeValueAsString(masked.toMap(fieldNames));
+            metrics.recordJsonSerialization(serStart, "kafka", direction, "kafka");
 
             try (MDC.MDCCloseable ignored = MDC.putCloseable(MDC_KEY, json)) {
                 writeLogLine(info, masked);
+            }
+            if (info.getValueLength() != null && info.getValueLength() > 0) {
+                metrics.recordKafkaMessageSize(direction, info.getValueLength(), info.getTopic());
             }
         } catch (Exception e) {
             log.error("Error while logging kafka info", e);

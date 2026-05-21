@@ -989,6 +989,80 @@ behaviour with `wiretap.tracing.propagation.type.b3.enabled=false`.
 The `lb_trace_id` field is sourced from the inbound `lb-trace-id` request header,
 intended for load-balancer-emitted IDs.
 
+## Metrics
+
+Wiretap publishes Micrometer metrics about its **own** processing overhead so
+you can quantify what logging costs in production. Metrics activate
+automatically whenever a `MeterRegistry` bean exists in the context
+(typically through `spring-boot-starter-actuator`); without one the library
+installs a no-op facade and adds zero overhead.
+
+```yaml
+wiretap:
+  metrics:
+    enabled: true             # master switch (default true)
+    detailed-timings: false   # per-phase (parse/mask/truncate/serialize) timers
+    histograms: false         # add Prometheus heatmap buckets + p50/p95/p99
+    tags:
+      topic: false            # include Kafka topic as a tag (cardinality risk)
+      status: true            # include grouped HTTP status (2xx/3xx/4xx/5xx)
+    async-appender:
+      enabled: true           # queue gauges when wiretap.async-logging.enabled
+```
+
+### Metric catalogue
+
+Always published (when enabled and a `MeterRegistry` is present):
+
+| Metric                              | Type                 | Tags                                                   | Notes |
+|-------------------------------------|----------------------|--------------------------------------------------------|-------|
+| `wiretap.http.overhead`             | Timer (seconds)      | `direction`, `client`, `outcome`, `status`             | Full pipeline overhead per HTTP request |
+| `wiretap.http.requests`             | Counter              | `direction`, `client`, `outcome`, `status`             | Co-emitted with the timer |
+| `wiretap.http.skipped`              | Counter              | `direction`, `client`, `reason`                        | Requests that bypassed logging |
+| `wiretap.http.body.size`            | DistributionSummary (bytes) | `direction`, `client`, `content_type_class`, `kind` (`request`/`response`) | Captured body size |
+| `wiretap.http.body.capture.failures`| Counter              | `direction`, `client`, `phase`                         | Exceptions inside parse/mask/serialise/emit |
+| `wiretap.kafka.overhead`            | Timer                | `direction` (`producer`/`consumer`), `outcome`         | Full pipeline overhead per Kafka message |
+| `wiretap.kafka.messages`            | Counter              | `direction`, `outcome`                                 | Co-emitted with the timer |
+| `wiretap.kafka.skipped`             | Counter              | `direction`, `reason`                                  | Skip causes (excluded topic / null record) |
+| `wiretap.kafka.message.size`        | DistributionSummary (bytes) | `direction`                                     | Message value size |
+
+Opt-in under `wiretap.metrics.detailed-timings=true`:
+
+| Metric                          | Tags                                                  | Notes |
+|---------------------------------|-------------------------------------------------------|-------|
+| `wiretap.body.phase`            | `phase`, `direction`, `client`, `content_type_class`  | Per-phase body-processing timer |
+| `wiretap.json.serialization`    | `sink`, `direction`, `client`                         | `ObjectMapper.writeValueAsString` time |
+| `wiretap.body.masker.invocation`| `masker_class`, `direction`                           | Per `HttpBodyMasker` SPI implementation |
+
+Opt-in under `wiretap.async-logging.enabled=true`
+(plus `wiretap.metrics.async-appender.enabled=true`, on by default):
+
+| Metric                                  | Type  | Tags         | Notes |
+|-----------------------------------------|-------|--------------|-------|
+| `wiretap.async.appender.queue.size`     | Gauge | `appender`   | Current buffered events |
+| `wiretap.async.appender.queue.capacity` | Gauge | `appender`   | Configured `queueSize` |
+| `wiretap.async.appender.queue.remaining`| Gauge | `appender`   | Capacity − size |
+
+### Tag value reference
+
+- `direction`: `incoming` / `outgoing` (HTTP), `producer` / `consumer` (Kafka).
+- `client`: `servlet` (incoming) / `webclient` / `restclient` / `resttemplate` / `feign` / `webservicetemplate`.
+- `outcome`: `success` / `client_error` (4xx) / `server_error` (5xx) / `exception` (HTTP); `success` / `error` (Kafka).
+- `status`: `2xx` / `3xx` / `4xx` / `5xx` / `other` / `exception` — never the raw status code.
+- `content_type_class`: `json` / `xml` / `text` / `binary` / `other`.
+- `phase`: `capture` / `parse` / `mask` / `truncate` / `serialize` / `emit`.
+- `reason`: `exclude_pattern` / `exclude_topic` / `streaming` / `unsupported_content_type` / `visibility_disabled` / `null_topic` / `null_record`.
+
+### Scraping
+
+Combine with `spring-boot-starter-actuator` and pick your exporter
+(`micrometer-registry-prometheus`, Datadog, etc.). All wiretap metrics use the
+`wiretap.` prefix, so a single Prometheus rule matches the lot:
+
+```bash
+curl localhost:8080/actuator/prometheus | grep '^wiretap_'
+```
+
 ## Pretty printing
 
 For local development, set `wiretap.pretty-print=true` to emit multi-line JSON.

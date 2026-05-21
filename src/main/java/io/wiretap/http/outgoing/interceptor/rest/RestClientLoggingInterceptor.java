@@ -5,6 +5,7 @@ import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.RestClientLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
+import io.wiretap.metrics.WiretapMetrics;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -17,8 +18,9 @@ public class RestClientLoggingInterceptor extends RestLoggingInterceptor {
             BodyParser bodyParser,
             HttpAccessFieldNames httpFieldNames,
             @Nullable HttpUrlMaskingHandler urlMaskingHandler,
-            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler,
+            WiretapMetrics metrics
     ) {
-        super(logMessageSettings, bodyParser, "RestClient", httpFieldNames, urlMaskingHandler, paramsMaskingHandler);
+        super(logMessageSettings, bodyParser, "RestClient", httpFieldNames, urlMaskingHandler, paramsMaskingHandler, metrics);
     }
 }

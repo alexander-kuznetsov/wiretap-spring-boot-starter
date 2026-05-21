@@ -7,6 +7,7 @@ import io.wiretap.kafka.message.KafkaTopicMaskingHandler;
 import io.wiretap.kafka.message.KafkaValueMaskingHandler;
 import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
 import io.wiretap.kafka.message.settings.KafkaConsumerLogMessageSettings;
+import io.wiretap.metrics.WiretapMetrics;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -33,11 +34,12 @@ public class IncomingKafkaConsumerConfiguration {
             WiretapAccessLogFieldsProperties fieldNames,
             @Autowired(required = false) KafkaValueMaskingHandler valueMaskingHandler,
             @Autowired(required = false) KafkaHeaderMaskingHandler headerMaskingHandler,
-            @Autowired(required = false) KafkaTopicMaskingHandler topicMaskingHandler
+            @Autowired(required = false) KafkaTopicMaskingHandler topicMaskingHandler,
+            WiretapMetrics metrics
     ) {
         KafkaAccessFieldNames names = fieldNames.getKafka();
         return new KafkaLogSink(settings, names,
-                valueMaskingHandler, headerMaskingHandler, topicMaskingHandler);
+                valueMaskingHandler, headerMaskingHandler, topicMaskingHandler, metrics);
     }
 
     @Bean

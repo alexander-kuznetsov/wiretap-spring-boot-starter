@@ -38,7 +38,7 @@ class WiretapProducerListenerTest {
     @BeforeEach
     void setUp() {
         listener = new WiretapProducerListener(
-                new KafkaLogSink(new KafkaProducerLogMessageSettings(), new KafkaAccessFieldNames(), null, null, null));
+                new KafkaLogSink(new KafkaProducerLogMessageSettings(), new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
 
         sinkLogger = (Logger) LoggerFactory.getLogger(KafkaLogSink.class);
         appender = new ListAppender<>();
@@ -113,7 +113,7 @@ class WiretapProducerListenerTest {
         KafkaProducerLogMessageSettings settings = new KafkaProducerLogMessageSettings();
         settings.setExcludeTopicPatterns(List.of("orders\\..*"));
         WiretapProducerListener filtered = new WiretapProducerListener(
-                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
 
         filtered.onSuccess(producerRecord("k", "v"), metadata(0, 1L));
 
@@ -126,7 +126,7 @@ class WiretapProducerListenerTest {
         settings.getVisibilitySettings().put(KafkaConfigurableField.KEY, Boolean.FALSE);
         settings.getVisibilitySettings().put(KafkaConfigurableField.VALUE, Boolean.FALSE);
         WiretapProducerListener hidden = new WiretapProducerListener(
-                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null));
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
 
         hidden.onSuccess(producerRecord("k", "v"), metadata(0, 1L));
 
