@@ -1,5 +1,6 @@
 package io.wiretap.kafka;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.wiretap.kafka.message.KafkaHeaderMaskingHandler;
 import io.wiretap.kafka.message.KafkaMessageInfo;
@@ -13,6 +14,7 @@ import io.wiretap.metrics.NoOpWiretapMetrics;
 import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
+import io.wiretap.util.JsonBodyUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.header.Headers;
 import org.jetbrains.annotations.Nullable;
@@ -200,10 +202,28 @@ public class KafkaLogSink {
                 && valueMaskingHandler != null) {
             result = valueMaskingHandler.maskValue(topic, result);
         }
+        result = prettyPrintIfJson(result);
         if (body.isEnableValueTruncating() && result.length() > body.getMaxValueLength()) {
             result = result.substring(0, body.getMaxValueLength()) + "...[truncated]";
         }
         return result;
+    }
+
+    /**
+     * If {@code raw} parses as a JSON object / array, returns its pretty-printed
+     * form (multi-line with {@code \n}) so log aggregators render it nicely.
+     * Scalars and non-JSON payloads are returned untouched.
+     */
+    private String prettyPrintIfJson(String raw) {
+        try {
+            JsonNode node = mapper.readTree(raw);
+            if (JsonBodyUtils.isJsonBody(node)) {
+                return JsonBodyUtils.getStringBody(node);
+            }
+        } catch (Exception ignored) {
+            // not JSON — fall through and return raw
+        }
+        return raw;
     }
 
     private Map<String, String> maskHeaders(String topic, Map<String, String> headers,

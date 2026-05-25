@@ -5,8 +5,10 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.wiretap.kafka.KafkaLogSink;
+import io.wiretap.kafka.message.KafkaValueMaskingHandler;
 import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
 import io.wiretap.kafka.message.settings.KafkaConsumerLogMessageSettings;
 import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings.KafkaConfigurableField;
@@ -131,10 +133,11 @@ class WiretapRecordInterceptorTest {
                 .containsEntry("client_id", "test-consumer")
                 .containsEntry("group_id", "checkout-group")
                 .containsEntry("key", "ord-42")
-                .containsEntry("value", "{\"orderId\":\"ord-42\"}")
                 .containsEntry("timestamp_type", "CREATE_TIME")
                 .containsEntry("status", "SUCCESS")
                 .containsKey("duration");
+        JsonNode valueTree = MAPPER.readTree((String) payload.get("value"));
+        assertThat(valueTree.get("orderId").asText()).isEqualTo("ord-42");
         assertThat(((Number) payload.get("duration")).longValue()).isGreaterThanOrEqualTo(0L);
     }
 
@@ -272,6 +275,89 @@ class WiretapRecordInterceptorTest {
                 appender.list.get(1).getMDCPropertyMap().get(KafkaLogSink.MDC_KEY), MAP_TYPE);
         assertThat(second).doesNotContainKey("duration");
         assertThat(second).containsEntry("status", "SUCCESS");
+    }
+
+    // ---- pretty-print of JSON key/value ----
+
+    @Test
+    void valueIsJsonObject_isPrettyPrintedWithNewlines() throws Exception {
+        ConsumerRecord<String, String> rec = record("k", "{\"id\":42,\"name\":\"a\"}", new RecordHeaders());
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
+
+        String value = (String) latestKafkaInfo().get("value");
+        assertThat(value).contains("\n");
+        JsonNode tree = MAPPER.readTree(value);
+        assertThat(tree.get("id").asInt()).isEqualTo(42);
+    }
+
+    @Test
+    void keyIsJsonObject_isPrettyPrintedWithNewlines() throws Exception {
+        ConsumerRecord<String, String> rec = record("{\"k\":1}", "v", new RecordHeaders());
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
+
+        String key = (String) latestKafkaInfo().get("key");
+        assertThat(key).contains("\n");
+        JsonNode tree = MAPPER.readTree(key);
+        assertThat(tree.get("k").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void valueIsPlainString_isLoggedAsIs() throws Exception {
+        ConsumerRecord<String, String> rec = record("k", "not-json", new RecordHeaders());
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
+
+        assertThat(latestKafkaInfo().get("value")).isEqualTo("not-json");
+    }
+
+    @Test
+    void valueIsMalformedJson_isLoggedAsIs() throws Exception {
+        String malformed = "{\"a\":";
+        ConsumerRecord<String, String> rec = record("k", malformed, new RecordHeaders());
+        interceptor.intercept(rec, consumer);
+        interceptor.success(rec, consumer);
+
+        assertThat(latestKafkaInfo().get("value")).isEqualTo(malformed);
+    }
+
+    @Test
+    void prettyPrintBeforeTruncating_truncatesPrettyString() throws Exception {
+        KafkaConsumerLogMessageSettings settings = new KafkaConsumerLogMessageSettings();
+        settings.getMessageBodySettings().setEnableValueTruncating(true);
+        settings.getMessageBodySettings().setMaxValueLength(20);
+        WiretapRecordInterceptor<String, String> truncating = new WiretapRecordInterceptor<>(
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), null, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
+
+        ConsumerRecord<String, String> rec = record("k", "{\"id\":42,\"name\":\"alice\",\"city\":\"berlin\"}", new RecordHeaders());
+        truncating.intercept(rec, consumer);
+        truncating.success(rec, consumer);
+
+        String value = (String) latestKafkaInfo().get("value");
+        assertThat(value).endsWith("...[truncated]");
+        assertThat(value).hasSize(20 + "...[truncated]".length());
+    }
+
+    @Test
+    void maskingBeforePrettyPrint_handlerSeesSingleLineInput() throws Exception {
+        java.util.concurrent.atomic.AtomicReference<String> seenByHandler = new java.util.concurrent.atomic.AtomicReference<>();
+        KafkaValueMaskingHandler handler = (topic, value) -> {
+            seenByHandler.set(value);
+            return value;
+        };
+        KafkaConsumerLogMessageSettings settings = new KafkaConsumerLogMessageSettings();
+        settings.getMessageBodySettings().setEnableValueMasking(true);
+        WiretapRecordInterceptor<String, String> masked = new WiretapRecordInterceptor<>(
+                new KafkaLogSink(settings, new KafkaAccessFieldNames(), handler, null, null, new io.wiretap.metrics.NoOpWiretapMetrics()));
+
+        String singleLine = "{\"id\":42}";
+        ConsumerRecord<String, String> rec = record("k", singleLine, new RecordHeaders());
+        masked.intercept(rec, consumer);
+        masked.success(rec, consumer);
+
+        assertThat(seenByHandler.get()).isEqualTo(singleLine);
+        assertThat((String) latestKafkaInfo().get("value")).contains("\n");
     }
 
     @Test

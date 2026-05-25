@@ -294,11 +294,19 @@ available via `IAccessEvent` (e.g. request headers) are not accessible inside
 
 ## Header forwarding
 
-By default the following inbound request headers are mirrored into MDC so any
-`log.info(...)` call inside the request thread is automatically tagged with them:
-`x-request-id`, `x-session-key`, `lb-trace-id`.
+By default the following inbound request headers are copied into SLF4J MDC under
+keys equal to the header name: `x-request-id`, `x-session-key`, `lb-trace-id`.
+Inside the request thread they are reachable via `MDC.get("x-request-id")` and
+from any Logback `PatternLayout` token (`%X{x-request-id}`).
 
-Override the list when your infrastructure uses different conventions:
+They do **not** automatically appear as fields in wiretap's JSON application log.
+The default encoder pipeline only emits a fixed schema plus the MDC keys it knows
+about (`traceId`, `spanId`, `HTTP-REQUEST-LOG`, `KAFKA-MESSAGE-LOG`, `LOG_EXTRA`).
+To surface a forwarded header as a top-level field in every `log.info(...)` line,
+register a `WiretapLogFieldProvider` that reads it back from MDC — see the SPI
+example above (`TenantIdLogFieldProvider`).
+
+Override the forwarded list when your infrastructure uses different conventions:
 
 ```yaml
 wiretap:
@@ -802,6 +810,29 @@ names below).
 | `status` | enum | `SUCCESS` / `ERROR` | `SUCCESS` / `ERROR` | Outcome of the send / listener invocation. |
 | `error_class` | string | on failure | on failure | FQN of the exception. |
 | `error_message` | string | on failure | on failure | `exception.getMessage()`. |
+
+### JSON payload formatting
+
+When `key` or `value` happens to parse as a JSON object or array, wiretap
+runs it through `OBJECT_MAPPER.writerWithDefaultPrettyPrinter()` before
+emitting, so the string ends up multi-line (real `\n` characters inside).
+Log aggregators (Kibana / Splunk / Grafana Loki) render this as a
+formatted payload block instead of a collapsed one-liner. Scalars,
+plain strings and malformed JSON are emitted verbatim with no
+transformation.
+
+The `value` field stays a **string** in the final JSON — wiretap
+deliberately does not embed payloads as nested objects under
+`kafka_info.value`. Across topics, payload shapes vary; turning them
+into nested objects would force the log aggregator to index every
+shape, producing `mapping conflict` errors in Elasticsearch /
+OpenSearch as soon as two records use the same top-level field name
+with different types.
+
+Pretty-printing runs **after** any `KafkaValueMaskingHandler` (the
+handler still sees the original single-line payload, so existing
+regex-based masks are not broken) and **before** `enable-value-truncating`
+(the length limit applies to the final pretty-printed text).
 
 ### About `timestamp` and `timestamp_type`
 

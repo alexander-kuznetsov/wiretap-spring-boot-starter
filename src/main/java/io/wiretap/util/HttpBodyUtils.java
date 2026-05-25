@@ -1,11 +1,8 @@
 package io.wiretap.util;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +34,6 @@ import java.util.function.Function;
 public final class HttpBodyUtils {
 
     private static final String REPLACE_MESSAGE = "...truncated...";
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     private HttpBodyUtils() {
     }
@@ -136,18 +132,11 @@ public final class HttpBodyUtils {
     }
 
     public static String getStringBody(JsonNode body) throws JsonProcessingException {
-        if (body != null) {
-            return isJsonBody(body) ?
-                    OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(body) :
-                    body.toString();
-        }
-        return null;
+        return JsonBodyUtils.getStringBody(body);
     }
 
     public static boolean isJsonBody(@NotNull JsonNode body) {
-        return (JsonNodeType.OBJECT == body.getNodeType() ||
-                JsonNodeType.POJO == body.getNodeType() ||
-                JsonNodeType.ARRAY == body.getNodeType());
+        return JsonBodyUtils.isJsonBody(body);
     }
 
     public static boolean isXmlBody(MediaType contentType) {

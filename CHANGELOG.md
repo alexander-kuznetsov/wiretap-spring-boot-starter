@@ -6,6 +6,19 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+### Changed
+- Kafka `kafka_info.key` and `kafka_info.value` payloads that parse as JSON
+  objects or arrays are now pretty-printed (multi-line with `\n`) inside the
+  log string, matching how HTTP request / response bodies are rendered. Log
+  aggregators (Kibana / Splunk / Grafana Loki) display them as a formatted
+  block instead of a collapsed one-liner. Plain strings, scalars and
+  malformed JSON are emitted verbatim. The field remains a string in the
+  emitted JSON — payloads are not embedded as nested objects to avoid
+  index-type collisions in Elasticsearch / OpenSearch. The pretty-print step
+  runs after the optional `KafkaValueMaskingHandler` and before
+  `enable-value-truncating`, so existing single-line regex masks keep
+  working and the truncation limit applies to the final pretty text.
+
 ### Added
 - Micrometer metrics for wiretap's own processing pipeline. When a
   `MeterRegistry` bean is present in the Spring context (typically through

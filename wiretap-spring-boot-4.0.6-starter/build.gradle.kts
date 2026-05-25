@@ -175,6 +175,7 @@ val overlayMainFiles = listOf(
     "io/wiretap/http/outgoing/interceptor/webservicetemplate/WebServiceTemplateLoggingInterceptor.java",
     "io/wiretap/kafka/KafkaLogSink.java",
     "io/wiretap/util/HttpBodyUtils.java",
+    "io/wiretap/util/JsonBodyUtils.java",
 )
 val overlayTestFiles = listOf(
     "io/wiretap/applog/provider/WiretapDelegatingLogFieldProviderTest.java",
@@ -186,6 +187,7 @@ val overlayTestFiles = listOf(
     "io/wiretap/http/outgoing/interceptor/webclient/WebClientLoggingFilterTest.java",
     "io/wiretap/kafka/consumer/WiretapRecordInterceptorTest.java",
     "io/wiretap/kafka/producer/WiretapProducerListenerTest.java",
+    "io/wiretap/util/JsonBodyUtilsTest.java",
 )
 
 // Patches Jackson-agnostic wiretap sources for Spring Boot 4: logback-access
