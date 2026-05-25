@@ -1064,9 +1064,9 @@ wiretap:
 
 | Метрика                          | Теги                                                  | Описание |
 |----------------------------------|-------------------------------------------------------|----------|
-| `wiretap.body.phase`             | `phase`, `direction`, `client`, `content_type_class`  | Timer на одну фазу обработки тела |
+| `wiretap.body.phase`             | `phase`, `direction`, `client`, `content_type_class`  | Timer на одну фазу обработки тела. HTTP body эмитит `parse` / `mask` / `truncate` из `DefaultBodyParser`. Kafka body эмитит те же три фазы из `KafkaLogSink.renderValue` с тегами `client=kafka` и `direction=producer`/`consumer`. |
 | `wiretap.json.serialization`     | `sink`, `direction`, `client`                         | Время `ObjectMapper.writeValueAsString` |
-| `wiretap.body.masker.invocation` | `masker_class`, `direction`                           | Время работы одной SPI-реализации `HttpBodyMasker` |
+| `wiretap.body.masker.invocation` | `masker_class`, `direction`                           | Время одного вызова `HttpBodyMasker` для HTTP-стороны или `KafkaValueMaskingHandler` для Kafka-стороны (`masker_class` = FQN хэндлера). |
 
 Под `wiretap.async-logging.enabled=true`
 (плюс `wiretap.metrics.async-appender.enabled=true`, по умолчанию true):
@@ -1080,7 +1080,7 @@ wiretap:
 ### Справочник значений тегов
 
 - `direction`: `incoming` / `outgoing` (HTTP), `producer` / `consumer` (Kafka).
-- `client`: `servlet` (incoming) / `webclient` / `restclient` / `resttemplate` / `feign` / `webservicetemplate`.
+- `client`: `servlet` (incoming) / `webclient` / `restclient` / `resttemplate` / `feign` / `webservicetemplate` (HTTP); `kafka` (Kafka body pipeline — только на `wiretap.body.phase` и `wiretap.body.masker.invocation`).
 - `outcome`: `success` / `client_error` (4xx) / `server_error` (5xx) / `exception` (HTTP); `success` / `error` (Kafka).
 - `status`: `2xx` / `3xx` / `4xx` / `5xx` / `other` / `exception` — никогда не сырое значение кода.
 - `content_type_class`: `json` / `xml` / `text` / `binary` / `other`.

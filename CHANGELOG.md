@@ -6,6 +6,15 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+### Added
+- Phase-level timers for the Kafka body pipeline, mirroring the HTTP
+  side. With `wiretap.metrics.detailed-timings=true` `KafkaLogSink`
+  emits `wiretap.body.phase` for `parse` / `mask` / `truncate` and
+  `wiretap.body.masker.invocation` for `KafkaValueMaskingHandler`
+  calls, tagged `client=kafka` and `direction=producer`/`consumer`.
+  The flag default stays off, so the hot path is unchanged for users
+  who do not opt in.
+
 ### Changed
 - Kafka `kafka_info.key` and `kafka_info.value` payloads that parse as JSON
   objects or arrays are now pretty-printed (multi-line with `\n`) inside the

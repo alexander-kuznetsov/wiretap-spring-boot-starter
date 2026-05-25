@@ -1061,9 +1061,9 @@ Opt-in under `wiretap.metrics.detailed-timings=true`:
 
 | Metric                          | Tags                                                  | Notes |
 |---------------------------------|-------------------------------------------------------|-------|
-| `wiretap.body.phase`            | `phase`, `direction`, `client`, `content_type_class`  | Per-phase body-processing timer |
+| `wiretap.body.phase`            | `phase`, `direction`, `client`, `content_type_class`  | Per-phase body-processing timer. HTTP body emits `parse` / `mask` / `truncate` from `DefaultBodyParser`. Kafka body emits the same three phases from `KafkaLogSink.renderValue` with `client=kafka` and `direction=producer`/`consumer`. |
 | `wiretap.json.serialization`    | `sink`, `direction`, `client`                         | `ObjectMapper.writeValueAsString` time |
-| `wiretap.body.masker.invocation`| `masker_class`, `direction`                           | Per `HttpBodyMasker` SPI implementation |
+| `wiretap.body.masker.invocation`| `masker_class`, `direction`                           | Per `HttpBodyMasker` invocation on the HTTP side; per `KafkaValueMaskingHandler` invocation on the Kafka side (`masker_class` = handler FQN). |
 
 Opt-in under `wiretap.async-logging.enabled=true`
 (plus `wiretap.metrics.async-appender.enabled=true`, on by default):
@@ -1077,7 +1077,7 @@ Opt-in under `wiretap.async-logging.enabled=true`
 ### Tag value reference
 
 - `direction`: `incoming` / `outgoing` (HTTP), `producer` / `consumer` (Kafka).
-- `client`: `servlet` (incoming) / `webclient` / `restclient` / `resttemplate` / `feign` / `webservicetemplate`.
+- `client`: `servlet` (incoming) / `webclient` / `restclient` / `resttemplate` / `feign` / `webservicetemplate` (HTTP); `kafka` (Kafka body pipeline — only on `wiretap.body.phase` and `wiretap.body.masker.invocation`).
 - `outcome`: `success` / `client_error` (4xx) / `server_error` (5xx) / `exception` (HTTP); `success` / `error` (Kafka).
 - `status`: `2xx` / `3xx` / `4xx` / `5xx` / `other` / `exception` — never the raw status code.
 - `content_type_class`: `json` / `xml` / `text` / `binary` / `other`.

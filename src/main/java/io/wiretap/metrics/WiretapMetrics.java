@@ -21,7 +21,10 @@ package io.wiretap.metrics;
  *   <li>{@code direction}: {@code incoming} / {@code outgoing} (HTTP),
  *       {@code producer} / {@code consumer} (Kafka).</li>
  *   <li>{@code client}: {@code servlet} / {@code webclient} / {@code restclient}
- *       / {@code resttemplate} / {@code feign} / {@code webservicetemplate}.</li>
+ *       / {@code resttemplate} / {@code feign} / {@code webservicetemplate} (HTTP),
+ *       {@code kafka} (Kafka body pipeline — used as the {@code client} tag for
+ *       {@code wiretap.body.phase} and {@code wiretap.body.masker.invocation}
+ *       emitted from {@code KafkaLogSink}).</li>
  *   <li>{@code outcome}: {@code success} / {@code client_error} / {@code server_error}
  *       / {@code exception} (HTTP), {@code success} / {@code error} (Kafka).</li>
  *   <li>{@code status}: {@code 2xx} / {@code 3xx} / {@code 4xx} / {@code 5xx}

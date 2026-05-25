@@ -10,6 +10,7 @@ import io.wiretap.kafka.message.settings.KafkaAccessFieldNames;
 import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings;
 import io.wiretap.kafka.message.settings.KafkaInfoLogMessageSettings.KafkaConfigurableField;
 import io.wiretap.kafka.message.settings.body.MessageBodySettings;
+import io.wiretap.metrics.BodyMetricsContext;
 import io.wiretap.metrics.NoOpWiretapMetrics;
 import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
@@ -99,7 +100,7 @@ public class KafkaLogSink {
             final KafkaInfoLogMessageSettings effective = settings.getSettingsByTopic(info.getTopic());
             final FieldVisibilityMap<KafkaConfigurableField> visibility = effective.getVisibilitySettings();
 
-            final KafkaMessageInfo masked = applyVisibilityAndMasking(info, effective, visibility);
+            final KafkaMessageInfo masked = applyVisibilityAndMasking(info, effective, visibility, direction);
             long serStart = metrics.startSample();
             final String json = mapper.writeValueAsString(masked.toMap(fieldNames));
             metrics.recordJsonSerialization(serStart, "kafka", direction, "kafka");
@@ -152,7 +153,8 @@ public class KafkaLogSink {
     private KafkaMessageInfo applyVisibilityAndMasking(
             KafkaMessageInfo info,
             KafkaInfoLogMessageSettings effective,
-            FieldVisibilityMap<KafkaConfigurableField> v
+            FieldVisibilityMap<KafkaConfigurableField> v,
+            String direction
     ) {
         final String topic = info.getTopic();
         final MessageBodySettings body = effective.getMessageBodySettings();
@@ -165,10 +167,10 @@ public class KafkaLogSink {
                 .clientId(visible(v, KafkaConfigurableField.CLIENT_ID) ? info.getClientId() : null)
                 .groupId(visible(v, KafkaConfigurableField.GROUP_ID) ? info.getGroupId() : null)
                 .key(visible(v, KafkaConfigurableField.KEY)
-                        ? renderValue(topic, info.getKey(), effective, body) : null)
+                        ? renderValue(direction, topic, info.getKey(), effective, body) : null)
                 .keyLength(info.getKeyLength())
                 .value(visible(v, KafkaConfigurableField.VALUE)
-                        ? renderValue(topic, info.getValue(), effective, body) : null)
+                        ? renderValue(direction, topic, info.getValue(), effective, body) : null)
                 .valueLength(info.getValueLength())
                 .headers(visible(v, KafkaConfigurableField.HEADERS)
                         ? maskHeaders(topic, info.getHeaders(), effective) : null)
@@ -192,7 +194,7 @@ public class KafkaLogSink {
                 : topic;
     }
 
-    private String renderValue(String topic, String raw,
+    private String renderValue(String direction, String topic, String raw,
                                KafkaInfoLogMessageSettings effective,
                                MessageBodySettings body) {
         if (raw == null) return null;
@@ -200,11 +202,20 @@ public class KafkaLogSink {
         if (effective.isEnableValueMasking()
                 && body.isEnableValueMasking()
                 && valueMaskingHandler != null) {
+            long maskStart = metrics.startSample();
+            long maskerStart = metrics.startSample();
             result = valueMaskingHandler.maskValue(topic, result);
+            metrics.recordBodyMaskerInvocation(
+                    maskerStart, valueMaskingHandler.getClass().getName(), direction);
+            metrics.recordPhase(maskStart,
+                    new BodyMetricsContext(direction, "kafka", "other"), "mask");
         }
-        result = prettyPrintIfJson(result);
+        result = prettyPrintIfJson(direction, result);
         if (body.isEnableValueTruncating() && result.length() > body.getMaxValueLength()) {
+            long truncStart = metrics.startSample();
             result = result.substring(0, body.getMaxValueLength()) + "...[truncated]";
+            metrics.recordPhase(truncStart,
+                    new BodyMetricsContext(direction, "kafka", "other"), "truncate");
         }
         return result;
     }
@@ -213,16 +224,26 @@ public class KafkaLogSink {
      * If {@code raw} parses as a JSON object / array, returns its pretty-printed
      * form (multi-line with {@code \n}) so log aggregators render it nicely.
      * Scalars and non-JSON payloads are returned untouched.
+     *
+     * <p>Records {@code wiretap.body.phase} with {@code phase=parse} on every
+     * invocation (mirroring {@code DefaultBodyParser.tryJson}) — the phase
+     * always runs, only the {@code content_type_class} tag varies.
      */
-    private String prettyPrintIfJson(String raw) {
+    private String prettyPrintIfJson(String direction, String raw) {
+        long parseStart = metrics.startSample();
         try {
             JsonNode node = mapper.readTree(raw);
             if (JsonBodyUtils.isJsonBody(node)) {
-                return JsonBodyUtils.getStringBody(node);
+                String pretty = JsonBodyUtils.getStringBody(node);
+                metrics.recordPhase(parseStart,
+                        new BodyMetricsContext(direction, "kafka", "json"), "parse");
+                return pretty;
             }
         } catch (Exception ignored) {
             // not JSON — fall through and return raw
         }
+        metrics.recordPhase(parseStart,
+                new BodyMetricsContext(direction, "kafka", "other"), "parse");
         return raw;
     }
 
