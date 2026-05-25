@@ -1103,6 +1103,30 @@ curl localhost:8080/actuator/prometheus | grep '^wiretap_'
 выводиться в многострочном формате. В продакшене оставляйте `false` (по умолчанию):
 log-шипперы быстрее разбирают однострочный JSON.
 
+В pretty-print режиме поле `stack_trace` рендерится **массивом строк**
+(по одной строке трейса на элемент массива), а не одной embedded-строкой.
+Причина: JSON-pretty-printer не умеет переносить внутри string-литерала
+— без этого фокуса длинный stack trace превращается в горизонтальный
+скролл в терминале. Лимиты (`wiretap.stacktrace.max-depth`,
+`wiretap.stacktrace.max-length`) и тот же самый `ShortenedThrowableConverter`
+работают в обоих режимах — отличается только форма поля в JSON:
+
+```text
+# pretty-print=false (продакшен, по умолчанию) — одна строка
+"stack_trace": "java.lang.RuntimeException: boom\n\tat com.example..."
+
+# pretty-print=true (локальная разработка) — массив строк
+"stack_trace": [
+  "java.lang.RuntimeException: boom",
+  "\tat com.example.Foo.bar(Foo.java:42)",
+  "\tat ..."
+]
+```
+
+Не включайте pretty-print в окружениях, которые шлют логи в Elasticsearch /
+OpenSearch — смена типа поля между string и array на одном индексе вызовет
+mapping conflict.
+
 ## Совместимость
 
 Wiretap публикуется в виде **одного артефакта на каждую тестируемую

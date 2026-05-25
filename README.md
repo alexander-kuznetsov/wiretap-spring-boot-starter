@@ -1099,6 +1099,31 @@ curl localhost:8080/actuator/prometheus | grep '^wiretap_'
 For local development, set `wiretap.pretty-print=true` to emit multi-line JSON.
 Leave it `false` (default) in production — log shippers parse single-line JSON faster.
 
+When pretty-print is on, the `stack_trace` field is rendered as a JSON
+**array of strings** (one element per line of the rendered trace) instead
+of a single embedded string. That is because a JSON pretty-printer cannot
+break lines inside a string literal — without this trick, a long stack
+trace becomes a horizontal scroll bar in the terminal. The same lengths
+(`wiretap.stacktrace.max-depth`, `wiretap.stacktrace.max-length`) and the
+same `ShortenedThrowableConverter` are used in both modes, so the only
+difference is the JSON shape:
+
+```text
+# pretty-print=false (production, default) — single string
+"stack_trace": "java.lang.RuntimeException: boom\n\tat com.example..."
+
+# pretty-print=true (local development) — array of strings
+"stack_trace": [
+  "java.lang.RuntimeException: boom",
+  "\tat com.example.Foo.bar(Foo.java:42)",
+  "\tat ..."
+]
+```
+
+Don't enable pretty-print in environments that ship logs to Elasticsearch /
+OpenSearch — switching the field type between string and array on the
+same index will cause a mapping conflict.
+
 ## Compatibility
 
 Wiretap is published as **one artifact per tested Spring Boot patch

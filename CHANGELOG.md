@@ -6,6 +6,19 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+### Changed
+- Under `wiretap.pretty-print=true` the `stack_trace` field is now
+  rendered as a JSON array of strings (one element per line) instead
+  of a single embedded string. The change makes long stack traces
+  readable in the terminal — `PrettyPrintingJsonGeneratorDecorator`
+  cannot wrap inside a string literal, so without splitting the trace
+  it produced one long horizontal line. The same depth / length
+  limits and `ShortenedThrowableConverter` are reused in both modes;
+  with `pretty-print=false` (default) the field remains a single
+  string, so log shippers and Elasticsearch / OpenSearch mappings
+  keep working unchanged. Do not enable pretty-print in environments
+  that index into the same Elasticsearch field as other instances.
+
 ### Added
 - Phase-level timers for the Kafka body pipeline, mirroring the HTTP
   side. With `wiretap.metrics.detailed-timings=true` `KafkaLogSink`

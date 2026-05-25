@@ -15,18 +15,31 @@
                 <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
                     <if condition='property("isPrettyLog").equals("true")'>
                         <then>
-                            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+                            <jsonGeneratorDecorator class="io.wiretap.applog.decorator.WiretapPrettyJsonGeneratorDecorator"/>
                         </then>
                     </if>
                     <providers>
                         <provider class="io.wiretap.applog.provider.LazyStandardLogFieldsProvider"/>
-                        <stackTrace>
-                            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
-                                <maxDepthPerThrowable>${stackTraceMaxDepth}</maxDepthPerThrowable>
-                                <maxLength>${stackTraceMaxLength}</maxLength>
-                                <rootCauseFirst>true</rootCauseFirst>
-                            </throwableConverter>
-                        </stackTrace>
+                        <if condition='property("isPrettyLog").equals("true")'>
+                            <then>
+                                <!-- pretty-print mode: stack trace as JSON array of lines so the
+                                     PrettyPrintingJsonGeneratorDecorator can wrap it vertically. -->
+                                <provider class="io.wiretap.applog.provider.WiretapPrettyStackTraceProvider">
+                                    <maxDepthPerThrowable>${stackTraceMaxDepth}</maxDepthPerThrowable>
+                                    <maxLength>${stackTraceMaxLength}</maxLength>
+                                    <rootCauseFirst>true</rootCauseFirst>
+                                </provider>
+                            </then>
+                            <else>
+                                <stackTrace>
+                                    <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                                        <maxDepthPerThrowable>${stackTraceMaxDepth}</maxDepthPerThrowable>
+                                        <maxLength>${stackTraceMaxLength}</maxLength>
+                                        <rootCauseFirst>true</rootCauseFirst>
+                                    </throwableConverter>
+                                </stackTrace>
+                            </else>
+                        </if>
                         <provider class="io.wiretap.applog.provider.WiretapDelegatingLogFieldProvider"/>
                     </providers>
                 </encoder>

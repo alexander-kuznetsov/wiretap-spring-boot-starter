@@ -152,10 +152,12 @@ dependencies {
 // relocations and the logback-access SPI move. Files in this list are
 // excluded from the Copy task so the overlay copy wins.
 val overlayMainFiles = listOf(
+    "io/wiretap/applog/decorator/WiretapPrettyJsonGeneratorDecorator.java",
     "io/wiretap/applog/extra/ExtraAppLogContextKeeper.java",
     "io/wiretap/applog/provider/LazyStandardLogFieldsProvider.java",
     "io/wiretap/applog/provider/WiretapDelegatingLogFieldProvider.java",
     "io/wiretap/applog/provider/WiretapLogFieldProvider.java",
+    "io/wiretap/applog/provider/WiretapPrettyStackTraceProvider.java",
     "io/wiretap/applog/provider/WiretapStandardLogFieldsProvider.java",
     "io/wiretap/http/incoming/provider/httpinfo/HttpInfoMessageProvider.java",
     "io/wiretap/http/incoming/provider/httpinfo/LazyHttpInfoMessageProvider.java",
@@ -178,7 +180,9 @@ val overlayMainFiles = listOf(
     "io/wiretap/util/JsonBodyUtils.java",
 )
 val overlayTestFiles = listOf(
+    "io/wiretap/applog/decorator/WiretapPrettyJsonGeneratorDecoratorTest.java",
     "io/wiretap/applog/provider/WiretapDelegatingLogFieldProviderTest.java",
+    "io/wiretap/applog/provider/WiretapPrettyStackTraceProviderTest.java",
     "io/wiretap/http/incoming/provider/LazyDelegatesTest.java",
     "io/wiretap/http/incoming/provider/trace/TraceIdProvidersTest.java",
     "io/wiretap/http/incoming/provider/WiretapDelegatingFieldProviderTest.java",
