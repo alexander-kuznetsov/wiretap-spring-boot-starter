@@ -170,7 +170,7 @@ val overlayMainFiles = listOf(
     "io/wiretap/http/message/HttpMessageInfo.java",
     "io/wiretap/http/message/settings/body/BodyParser.java",
     "io/wiretap/http/message/settings/body/DefaultBodyParser.java",
-    "io/wiretap/http/message/settings/body/HttpBodyMasker.java",
+    "io/wiretap/http/message/settings/body/HttpBodyMaskingHandler.java",
     "io/wiretap/http/outgoing/interceptor/feignclient/FeignClientWrapper.java",
     "io/wiretap/http/outgoing/interceptor/rest/RestLoggingInterceptor.java",
     "io/wiretap/http/outgoing/interceptor/webclient/WebClientLoggingFilter.java",
@@ -270,6 +270,17 @@ tasks.named<JavaCompile>("compileJava") {
 }
 tasks.named<JavaCompile>("compileTestJava") {
     dependsOn(rewriteTestSources)
+}
+
+// Gradle 9 requires explicit producer/consumer wiring for any task that
+// reads the generated `main` sourceSet — without it `sourcesJar` (vanniktech
+// publish) and `javadoc` would consume `rewriteMainSources` output without
+// declaring the dependency and the build fails validation. `sourcesJar` is
+// registered by the publish plugin during configure, so wire it in
+// `afterEvaluate` rather than at script eval.
+afterEvaluate {
+    tasks.findByName("sourcesJar")?.dependsOn(rewriteMainSources)
+    tasks.findByName("javadoc")?.dependsOn(rewriteMainSources)
 }
 
 tasks.test {

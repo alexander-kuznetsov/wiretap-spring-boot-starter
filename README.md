@@ -6,11 +6,11 @@
 > capture across servlet, RestTemplate, RestClient, FeignClient, WebClient, and WebServiceTemplate.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.alexander-kuznetsov/wiretap.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.alexander-kuznetsov/wiretap)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter)
 [![compatibility](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml)
 [![release](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml)
 
-**Status:** `0.1.0-SNAPSHOT` — work in progress, public API not yet stable. Do not use in production.
+**Status:** `1.0.0` — stable public release. Public API (configuration properties, SPI interfaces, artifact coordinates) follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## What you get
 
@@ -65,11 +65,13 @@ ID propagation, and built-in masking of sensitive data.
 
 ```gradle
 dependencies {
-    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.1'
+    // Pick the coordinate matching your Spring Boot version
+    // (see the "Versioning and compatibility" section below).
+    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0'
 }
 ```
 
-The artifact is published to **Maven Central**, so `mavenCentral()` —
+The artifacts are published to **Maven Central**, so `mavenCentral()` —
 the default repository in most Spring Boot projects — is enough; no
 credentials, no extra setup.
 
@@ -82,7 +84,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.github.alexander-kuznetsov:wiretap:0.1.2-SNAPSHOT'
+    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.1-SNAPSHOT'
 }
 ```
 
@@ -421,7 +423,7 @@ wiretap:
       max-body-length: 10000        # truncate bodies longer than this
       max-field-length: 1000        # truncate string fields inside JSON bodies
       enable-body-truncating: true
-      enable-body-masking: true     # call HttpBodyMaskingHandler for each body field value
+      enable-body-masking: true     # call HttpBodyFieldMaskingHandler for each body field value
     enable-url-masking: true        # call HttpUrlMaskingHandler for the request URL
     enable-request-params-masking: true   # call HttpRequestParamsMaskingHandler per query param
 ```
@@ -432,20 +434,21 @@ you need — each context is opt-in:
 | Interface | Applied to | Activation |
 |---|---|---|
 | `io.wiretap.applog.message.handler.MessageMaskingHandler` | `message` field in app logs | bean present + `wiretap.message-masking=true` (default) |
-| `io.wiretap.http.message.settings.body.HttpBodyMaskingHandler` | each field value in HTTP request/response bodies (recursive, no URL context) | bean present + `enable-body-masking=true` |
-| `io.wiretap.http.message.settings.body.HttpBodyMasker` | parsed JSON body as a whole, per-URL (structural — mask specific fields on specific endpoints) | bean present + `enable-body-masking=true`; first masker whose `appliesTo(url)` is `true` wins |
+| `io.wiretap.http.message.settings.body.HttpBodyFieldMaskingHandler` | each field value in HTTP request/response bodies (recursive, no URL context) | bean present + `enable-body-masking=true` |
+| `io.wiretap.http.message.settings.body.HttpBodyMaskingHandler` | parsed JSON body as a whole, per-URL (structural — mask specific fields on specific endpoints) | bean present + `enable-body-masking=true`; first handler whose `appliesTo(url)` is `true` wins |
 | `io.wiretap.http.message.HttpUrlMaskingHandler` | full request URL (path + query string) | bean present + `enable-url-masking=true` |
 | `io.wiretap.http.message.HttpRequestParamsMaskingHandler` | each query parameter value in `request_params` | bean present + `enable-request-params-masking=true` (default) |
 
-`HttpBodyMasker` and `HttpBodyMaskingHandler` compose: the structural
-masker (if it matches) runs first on the JSON tree, then the recursive
-handler (if registered) runs over the result. Use the structural one
-for endpoint-specific rules, the recursive one for blanket string
-patterns:
+`HttpBodyMaskingHandler` (structural per-URL) and
+`HttpBodyFieldMaskingHandler` (recursive per-field) compose: the
+structural handler (if it matches) runs first on the JSON tree, then
+the recursive field-handler (if registered) runs over the result. Use
+the structural one for endpoint-specific rules, the recursive one for
+blanket string patterns:
 
 ```java
 @Component
-public class CardLimitsMasker implements HttpBodyMasker {
+public class CardLimitsMasker implements HttpBodyMaskingHandler {
     private static final List<String> FIELDS = List.of("remaining_auth", "remaining_cash");
 
     @Override public boolean appliesTo(String url) {
@@ -1063,7 +1066,7 @@ Opt-in under `wiretap.metrics.detailed-timings=true`:
 |---------------------------------|-------------------------------------------------------|-------|
 | `wiretap.body.phase`            | `phase`, `direction`, `client`, `content_type_class`  | Per-phase body-processing timer. HTTP body emits `parse` / `mask` / `truncate` from `DefaultBodyParser`. Kafka body emits the same three phases from `KafkaLogSink.renderValue` with `client=kafka` and `direction=producer`/`consumer`. |
 | `wiretap.json.serialization`    | `sink`, `direction`, `client`                         | `ObjectMapper.writeValueAsString` time |
-| `wiretap.body.masker.invocation`| `masker_class`, `direction`                           | Per `HttpBodyMasker` invocation on the HTTP side; per `KafkaValueMaskingHandler` invocation on the Kafka side (`masker_class` = handler FQN). |
+| `wiretap.body.masker.invocation`| `masker_class`, `direction`                           | Per `HttpBodyMaskingHandler` invocation on the HTTP side; per `KafkaValueMaskingHandler` invocation on the Kafka side (`masker_class` = handler FQN). |
 
 Opt-in under `wiretap.async-logging.enabled=true`
 (plus `wiretap.metrics.async-appender.enabled=true`, on by default):

@@ -6,40 +6,18 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
-### Changed
-- Under `wiretap.pretty-print=true` the `stack_trace` field is now
-  rendered as a JSON array of strings (one element per line) instead
-  of a single embedded string. The change makes long stack traces
-  readable in the terminal — `PrettyPrintingJsonGeneratorDecorator`
-  cannot wrap inside a string literal, so without splitting the trace
-  it produced one long horizontal line. The same depth / length
-  limits and `ShortenedThrowableConverter` are reused in both modes;
-  with `pretty-print=false` (default) the field remains a single
-  string, so log shippers and Elasticsearch / OpenSearch mappings
-  keep working unchanged. Do not enable pretty-print in environments
-  that index into the same Elasticsearch field as other instances.
+_No unreleased changes._
 
-### Added
-- Phase-level timers for the Kafka body pipeline, mirroring the HTTP
-  side. With `wiretap.metrics.detailed-timings=true` `KafkaLogSink`
-  emits `wiretap.body.phase` for `parse` / `mask` / `truncate` and
-  `wiretap.body.masker.invocation` for `KafkaValueMaskingHandler`
-  calls, tagged `client=kafka` and `direction=producer`/`consumer`.
-  The flag default stays off, so the hot path is unchanged for users
-  who do not opt in.
+## [1.0.0] - 2026-05-26
 
-### Changed
-- Kafka `kafka_info.key` and `kafka_info.value` payloads that parse as JSON
-  objects or arrays are now pretty-printed (multi-line with `\n`) inside the
-  log string, matching how HTTP request / response bodies are rendered. Log
-  aggregators (Kibana / Splunk / Grafana Loki) display them as a formatted
-  block instead of a collapsed one-liner. Plain strings, scalars and
-  malformed JSON are emitted verbatim. The field remains a string in the
-  emitted JSON — payloads are not embedded as nested objects to avoid
-  index-type collisions in Elasticsearch / OpenSearch. The pretty-print step
-  runs after the optional `KafkaValueMaskingHandler` and before
-  `enable-value-truncating`, so existing single-line regex masks keep
-  working and the truncation limit applies to the final pretty text.
+First stable public release. The public API — configuration properties
+under `wiretap.*`, the SPI interfaces (`WiretapAccessFieldProvider`,
+`WiretapLogFieldProvider`, `HttpBodyMaskingHandler`, `HttpBodyFieldMaskingHandler`,
+`HttpUrlMaskingHandler`, `HttpRequestParamsMaskingHandler`,
+`MessageMaskingHandler`, `KafkaValueMaskingHandler`,
+`KafkaHeaderMaskingHandler`, `KafkaTopicMaskingHandler`), and the four
+published artifact coordinates — is now subject to semver
+breaking-change rules.
 
 ### Added
 - Micrometer metrics for wiretap's own processing pipeline. When a
@@ -49,7 +27,7 @@ versions before `1.0.0` are pre-release and the public API may change between mi
   client it instruments (`servlet` / `webclient` / `restclient` /
   `resttemplate` / `feign` / `webservicetemplate`) and for Kafka producer /
   consumer paths. `wiretap.metrics.detailed-timings=true` adds phase-level
-  timers (parse / mask / truncate / serialize) and a per-`HttpBodyMasker`
+  timers (parse / mask / truncate / serialize) and a per-`HttpBodyMaskingHandler`
   invocation timer; `wiretap.metrics.histograms=true` enables percentile
   histograms (p50 / p95 / p99) on every timer. When wiretap is wrapping
   Logback appenders in `AsyncAppender`
@@ -59,7 +37,13 @@ versions before `1.0.0` are pre-release and the public API may change between mi
   `wiretap.async.appender.queue.remaining`. Without a `MeterRegistry` or
   with `wiretap.metrics.enabled=false`, the library installs a no-op
   implementation and does not pull Micrometer onto the classpath.
-
+- Phase-level timers for the Kafka body pipeline, mirroring the HTTP
+  side. With `wiretap.metrics.detailed-timings=true` `KafkaLogSink`
+  emits `wiretap.body.phase` for `parse` / `mask` / `truncate` and
+  `wiretap.body.masker.invocation` for `KafkaValueMaskingHandler`
+  calls, tagged `client=kafka` and `direction=producer`/`consumer`.
+  The flag default stays off, so the hot path is unchanged for users
+  who do not opt in.
 - One Maven Central artifact per tested Spring Boot patch version,
   built from the same revision through per-subproject Copy-with-filter
   source rewriting:
@@ -82,6 +66,41 @@ versions before `1.0.0` are pre-release and the public API may change between mi
     `JsonProcessingException` (now a `RuntimeException`) replaced by
     `JacksonException`.
   Pick the coordinate that matches your Spring Boot version.
+
+### Changed
+- Under `wiretap.pretty-print=true` the `stack_trace` field is now
+  rendered as a JSON array of strings (one element per line) instead
+  of a single embedded string. The change makes long stack traces
+  readable in the terminal — `PrettyPrintingJsonGeneratorDecorator`
+  cannot wrap inside a string literal, so without splitting the trace
+  it produced one long horizontal line. The same depth / length
+  limits and `ShortenedThrowableConverter` are reused in both modes;
+  with `pretty-print=false` (default) the field remains a single
+  string, so log shippers and Elasticsearch / OpenSearch mappings
+  keep working unchanged. Do not enable pretty-print in environments
+  that index into the same Elasticsearch field as other instances.
+- Kafka `kafka_info.key` and `kafka_info.value` payloads that parse as JSON
+  objects or arrays are now pretty-printed (multi-line with `\n`) inside the
+  log string, matching how HTTP request / response bodies are rendered. Log
+  aggregators (Kibana / Splunk / Grafana Loki) display them as a formatted
+  block instead of a collapsed one-liner. Plain strings, scalars and
+  malformed JSON are emitted verbatim. The field remains a string in the
+  emitted JSON — payloads are not embedded as nested objects to avoid
+  index-type collisions in Elasticsearch / OpenSearch. The pretty-print step
+  runs after the optional `KafkaValueMaskingHandler` and before
+  `enable-value-truncating`, so existing single-line regex masks keep
+  working and the truncation limit applies to the final pretty text.
+
+### Removed
+- `io.wiretap.configuration.LoggerConfiguration`,
+  `io.wiretap.configuration.WiretapLogFieldProvidersInit`,
+  `io.wiretap.configuration.WiretapFieldProvidersInit` — empty
+  `@Deprecated` source-level stubs kept since the 0.1.0 internal
+  refactor. Replacements (`WiretapAutoConfiguration`,
+  `WiretapAppLogConfiguration`, `WiretapAccessLogConfiguration`) have
+  been in place and wired by auto-configuration for every release
+  since 0.1.1; consumers that did not subclass or `@Import` the stubs
+  are unaffected.
 
 ### Deprecated
 - `io.github.alexander-kuznetsov:wiretap` (without

@@ -96,6 +96,6 @@ public interface WiretapMetrics {
      */
     void recordJsonSerialization(long startNanos, String sink, String direction, String client);
 
-    /** Record {@code wiretap.body.masker.invocation} — time spent inside a single {@code HttpBodyMasker} SPI call. */
+    /** Record {@code wiretap.body.masker.invocation} — time spent inside a single {@code HttpBodyMaskingHandler} SPI call. */
     void recordBodyMaskerInvocation(long startNanos, String maskerClass, String direction);
 }

@@ -15,10 +15,10 @@ public class BodyParserConfiguration {
     @ConditionalOnMissingBean
     @Bean
     public BodyParser bodyParser(
-            @Autowired Optional<HttpBodyMaskingHandler> maskingHandler,
-            @Autowired List<HttpBodyMasker> bodyMaskers,
+            @Autowired Optional<HttpBodyFieldMaskingHandler> fieldMaskingHandler,
+            @Autowired List<HttpBodyMaskingHandler> bodyMaskingHandlers,
             @Autowired WiretapMetrics metrics
     ) {
-        return new DefaultBodyParser(maskingHandler.orElse(null), bodyMaskers, metrics);
+        return new DefaultBodyParser(fieldMaskingHandler.orElse(null), bodyMaskingHandlers, metrics);
     }
 }

@@ -26,8 +26,8 @@ class DefaultBodyParserTest {
         return settings;
     }
 
-    private static HttpBodyMasker matchingMasker(String urlPattern) {
-        return new HttpBodyMasker() {
+    private static HttpBodyMaskingHandler matchingMaskingHandler(String urlPattern) {
+        return new HttpBodyMaskingHandler() {
             @Override public boolean appliesTo(String url) { return url.matches(urlPattern); }
             @Override public JsonNode mask(JsonNode body) {
                 if (body.isObject()) {
@@ -41,8 +41,8 @@ class DefaultBodyParserTest {
     }
 
     @Test
-    void structuralMasker_replacesNamedFields_onMatchingUrl() {
-        DefaultBodyParser parser = new DefaultBodyParser(null, List.of(matchingMasker(".*/cardlimits.*")));
+    void structuralHandler_replacesNamedFields_onMatchingUrl() {
+        DefaultBodyParser parser = new DefaultBodyParser(null, List.of(matchingMaskingHandler(".*/cardlimits.*")));
 
         JsonNode result = parser.parseResponseBody(CARD_LIMITS_JSON, CARD_LIMITS_URL,
                 MediaType.APPLICATION_JSON, maskingOn);
@@ -53,8 +53,8 @@ class DefaultBodyParserTest {
     }
 
     @Test
-    void structuralMasker_skipped_onNonMatchingUrl() {
-        DefaultBodyParser parser = new DefaultBodyParser(null, List.of(matchingMasker(".*/cardlimits.*")));
+    void structuralHandler_skipped_onNonMatchingUrl() {
+        DefaultBodyParser parser = new DefaultBodyParser(null, List.of(matchingMaskingHandler(".*/cardlimits.*")));
 
         JsonNode result = parser.parseResponseBody(CARD_LIMITS_JSON, OTHER_URL,
                 MediaType.APPLICATION_JSON, maskingOn);
@@ -63,10 +63,10 @@ class DefaultBodyParserTest {
     }
 
     @Test
-    void firstMatchingMaskerWins_subsequentNotConsulted() {
+    void firstMatchingHandlerWins_subsequentNotConsulted() {
         boolean[] secondCalled = {false};
-        HttpBodyMasker first = matchingMasker(".*/cardlimits.*");
-        HttpBodyMasker second = new HttpBodyMasker() {
+        HttpBodyMaskingHandler first = matchingMaskingHandler(".*/cardlimits.*");
+        HttpBodyMaskingHandler second = new HttpBodyMaskingHandler() {
             @Override public boolean appliesTo(String url) { secondCalled[0] = true; return true; }
             @Override public JsonNode mask(JsonNode body) { return body; }
         };
@@ -79,14 +79,14 @@ class DefaultBodyParserTest {
     }
 
     @Test
-    void structuralMaskerAndHandler_composeOnSameBody() {
-        HttpBodyMaskingHandler handler = value -> "currency".equals(value) ? value : value + "-h";
-        DefaultBodyParser parser = new DefaultBodyParser(handler, List.of(matchingMasker(".*/cardlimits.*")));
+    void structuralHandlerAndFieldHandler_composeOnSameBody() {
+        HttpBodyFieldMaskingHandler fieldHandler = value -> "currency".equals(value) ? value : value + "-h";
+        DefaultBodyParser parser = new DefaultBodyParser(fieldHandler, List.of(matchingMaskingHandler(".*/cardlimits.*")));
 
         JsonNode result = parser.parseResponseBody(CARD_LIMITS_JSON, CARD_LIMITS_URL,
                 MediaType.APPLICATION_JSON, maskingOn);
 
-        // structural masker replaces remaining_*; recursive handler then suffixes every remaining text leaf
+        // structural handler replaces remaining_*; recursive field-handler then suffixes every remaining text leaf
         assertThat(result.get("remaining_auth").asString()).isEqualTo("***-h");
         assertThat(result.get("currency").asString()).isEqualTo("USD-h");
     }
@@ -94,12 +94,12 @@ class DefaultBodyParserTest {
     @Test
     void maskingDisabled_neitherStructuralNorRecursiveRuns() {
         boolean[] structuralCalled = {false};
-        HttpBodyMasker spy = new HttpBodyMasker() {
+        HttpBodyMaskingHandler spy = new HttpBodyMaskingHandler() {
             @Override public boolean appliesTo(String url) { structuralCalled[0] = true; return true; }
             @Override public JsonNode mask(JsonNode body) { return body; }
         };
-        HttpBodyMaskingHandler handler = value -> { throw new AssertionError("must not be called"); };
-        DefaultBodyParser parser = new DefaultBodyParser(handler, List.of(spy));
+        HttpBodyFieldMaskingHandler fieldHandler = value -> { throw new AssertionError("must not be called"); };
+        DefaultBodyParser parser = new DefaultBodyParser(fieldHandler, List.of(spy));
 
         JsonNode result = parser.parseResponseBody(CARD_LIMITS_JSON, CARD_LIMITS_URL,
                 MediaType.APPLICATION_JSON, maskingOff);
@@ -110,8 +110,8 @@ class DefaultBodyParserTest {
 
     @Test
     void backwardCompatibility_singleArgConstructor() {
-        HttpBodyMaskingHandler handler = value -> "MASKED";
-        DefaultBodyParser parser = new DefaultBodyParser(handler);
+        HttpBodyFieldMaskingHandler fieldHandler = value -> "MASKED";
+        DefaultBodyParser parser = new DefaultBodyParser(fieldHandler);
 
         JsonNode result = parser.parseResponseBody(CARD_LIMITS_JSON, CARD_LIMITS_URL,
                 MediaType.APPLICATION_JSON, maskingOn);

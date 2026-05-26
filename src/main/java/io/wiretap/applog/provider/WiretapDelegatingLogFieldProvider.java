@@ -23,7 +23,7 @@ public class WiretapDelegatingLogFieldProvider extends AbstractFieldJsonProvider
 
     private static final Logger log = LoggerFactory.getLogger(WiretapDelegatingLogFieldProvider.class);
 
-    /** Initialised by {@link io.wiretap.configuration.WiretapLogFieldProvidersInit} on Spring startup. */
+    /** Initialised by {@link io.wiretap.configuration.WiretapAppLogConfiguration} on Spring startup. */
     private static volatile List<WiretapLogFieldProvider> providers = List.of();
 
     /** Replaces the active provider set. Called once during Spring context initialisation. */

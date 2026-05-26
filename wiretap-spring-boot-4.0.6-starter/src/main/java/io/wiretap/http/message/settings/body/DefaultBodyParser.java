@@ -27,24 +27,24 @@ import static io.wiretap.util.HttpBodyUtils.isSupportedContentType;
 public class DefaultBodyParser implements BodyParser {
     private final ObjectMapper objectMapper = tools.jackson.databind.json.JsonMapper.builder().build();
     @Nullable
-    private final HttpBodyMaskingHandler maskingHandler;
-    private final List<HttpBodyMasker> bodyMaskers;
+    private final HttpBodyFieldMaskingHandler fieldMaskingHandler;
+    private final List<HttpBodyMaskingHandler> bodyMaskingHandlers;
     private final WiretapMetrics metrics;
 
-    public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler) {
-        this(maskingHandler, Collections.emptyList(), new NoOpWiretapMetrics());
+    public DefaultBodyParser(@Nullable HttpBodyFieldMaskingHandler fieldMaskingHandler) {
+        this(fieldMaskingHandler, Collections.emptyList(), new NoOpWiretapMetrics());
     }
 
-    public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler,
-                             List<HttpBodyMasker> bodyMaskers) {
-        this(maskingHandler, bodyMaskers, new NoOpWiretapMetrics());
+    public DefaultBodyParser(@Nullable HttpBodyFieldMaskingHandler fieldMaskingHandler,
+                             List<HttpBodyMaskingHandler> bodyMaskingHandlers) {
+        this(fieldMaskingHandler, bodyMaskingHandlers, new NoOpWiretapMetrics());
     }
 
-    public DefaultBodyParser(@Nullable HttpBodyMaskingHandler maskingHandler,
-                             List<HttpBodyMasker> bodyMaskers,
+    public DefaultBodyParser(@Nullable HttpBodyFieldMaskingHandler fieldMaskingHandler,
+                             List<HttpBodyMaskingHandler> bodyMaskingHandlers,
                              WiretapMetrics metrics) {
-        this.maskingHandler = maskingHandler;
-        this.bodyMaskers = bodyMaskers == null ? Collections.emptyList() : bodyMaskers;
+        this.fieldMaskingHandler = fieldMaskingHandler;
+        this.bodyMaskingHandlers = bodyMaskingHandlers == null ? Collections.emptyList() : bodyMaskingHandlers;
         this.metrics = metrics == null ? new NoOpWiretapMetrics() : metrics;
     }
     private static final String NOT_SUPPORTED_TYPE = "Logging of content type %s is not supported";
@@ -192,16 +192,16 @@ public class DefaultBodyParser implements BodyParser {
         }
         long maskStart = metrics.startSample();
         JsonNode masked = body;
-        for (HttpBodyMasker m : bodyMaskers) {
-            if (m.appliesTo(requestUrl)) {
+        for (HttpBodyMaskingHandler h : bodyMaskingHandlers) {
+            if (h.appliesTo(requestUrl)) {
                 long maskerStart = metrics.startSample();
-                masked = m.mask(masked);
-                metrics.recordBodyMaskerInvocation(maskerStart, m.getClass().getName(), "unknown");
+                masked = h.mask(masked);
+                metrics.recordBodyMaskerInvocation(maskerStart, h.getClass().getName(), "unknown");
                 break;
             }
         }
-        if (maskingHandler != null) {
-            masked = HttpBodyUtils.maskFieldsInBody(masked, maskingHandler::maskBodyField);
+        if (fieldMaskingHandler != null) {
+            masked = HttpBodyUtils.maskFieldsInBody(masked, fieldMaskingHandler::maskBodyField);
         }
         metrics.recordPhase(maskStart, BodyMetricsContext.NONE, "mask");
         return masked;

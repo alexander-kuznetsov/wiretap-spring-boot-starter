@@ -39,7 +39,7 @@ Wiretap captures HTTP and Kafka payloads by design. Several knobs help
 keep sensitive data out of the log stream:
 
 - `wiretap.rest-controllers.http-body-settings.enable-body-masking` +
-  a `HttpBodyMaskingHandler` bean — per-field masking of bodies.
+  a `HttpBodyFieldMaskingHandler` bean — per-field masking of bodies.
 - `wiretap.rest-controllers.enable-request-params-masking` +
   a `HttpRequestParamsMaskingHandler` — per-param masking.
 - `wiretap.rest-controllers.enable-url-masking` +
