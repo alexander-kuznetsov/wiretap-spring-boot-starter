@@ -7,8 +7,8 @@ are welcome but should come with a discussion in an issue first.
 ## Development setup
 
 ```bash
-git clone git@github.com:alexander-kuznetsov/verbatim-spring-boot-starter.git
-cd verbatim-spring-boot-starter
+git clone git@github.com:alexander-kuznetsov/wiretap-spring-boot-starter.git
+cd wiretap-spring-boot-starter
 ./gradlew build
 ```
 
@@ -31,10 +31,8 @@ integration tests for the outgoing interceptors use WireMock.
   name is self-explanatory.
 - Prefer constructor injection over field injection.
 - For new `wiretap.*` properties, add a corresponding entry in
-  `src/main/resources/META-INF/spring-configuration-metadata.json` so IDE
+  `src/main/resources/META-INF/additional-spring-configuration-metadata.json` so IDE
   auto-completion works.
-- Don't reintroduce removed Tinkoff/ATM-specific fields into the core. Anything
-  domain-specific belongs in a downstream `WiretapAccessFieldProvider` SPI bean.
 
 ## Pull requests
 
@@ -44,7 +42,7 @@ integration tests for the outgoing interceptors use WireMock.
 
 ## Reporting bugs
 
-Use [GitHub issues](https://github.com/alexander-kuznetsov/verbatim-spring-boot-starter/issues)
+Use [GitHub issues](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/issues)
 and include:
 - Wiretap version
 - Spring Boot version

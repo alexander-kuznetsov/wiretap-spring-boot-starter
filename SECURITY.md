@@ -21,16 +21,14 @@ CHANGELOG entry that ships the fix.
 
 ## Supported versions
 
-Only the **latest minor release line** of each major receives security
-patches:
+Only the **latest minor release line** receives security patches:
 
 | Version | Supported          |
 |---------|--------------------|
-| 0.1.x   | :white_check_mark: |
-| older   | :x:                |
+| 1.x     | :white_check_mark: |
+| < 1.0   | :x:                |
 
-When wiretap 1.x is published, support will move to it. Compatibility
-across Spring Boot / Java is documented in
+Compatibility across Spring Boot / Java is documented in
 [`COMPATIBILITY.md`](./COMPATIBILITY.md).
 
 ## Hardening defaults

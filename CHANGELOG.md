@@ -90,6 +90,17 @@ breaking-change rules.
   runs after the optional `KafkaValueMaskingHandler` and before
   `enable-value-truncating`, so existing single-line regex masks keep
   working and the truncation limit applies to the final pretty text.
+- **Breaking — body-masking SPI rename.** The two custom body-masking
+  extension points were renamed so they read as a matched pair, with no
+  change to their method contracts. The structural, per-URL masker
+  `HttpBodyMasker` (added in 0.1.3; `boolean appliesTo(String)` +
+  `JsonNode mask(JsonNode)`) is now `HttpBodyMaskingHandler`. The original
+  recursive per-field masker `HttpBodyMaskingHandler`
+  (`String maskBodyField(String)`) is now `HttpBodyFieldMaskingHandler`.
+  Consumers who implemented either SPI on 0.1.x must rename the interface
+  they implement (structural → `HttpBodyMaskingHandler`, per-field →
+  `HttpBodyFieldMaskingHandler`); the two still compose — structural runs
+  first, then per-field.
 
 ### Removed
 - `io.wiretap.configuration.LoggerConfiguration`,
