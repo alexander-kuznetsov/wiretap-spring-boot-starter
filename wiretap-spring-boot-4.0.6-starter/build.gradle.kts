@@ -152,6 +152,10 @@ dependencies {
 // relocations and the logback-access SPI move. Files in this list are
 // excluded from the Copy task so the overlay copy wins.
 val overlayMainFiles = listOf(
+    // Excluded so the Jackson-2 canonical copy is not pulled in (it would not compile
+    // against Jackson 3 / logstash 9.0). No overlay file ships either: SB4 pretty-print
+    // is wired through logstash 9.0's PrettyPrintingDecorator in the logback XML (see
+    // rewriteResourceForSpringBoot4), so wiretap needs no decorator class of its own here.
     "io/wiretap/applog/decorator/WiretapPrettyJsonGeneratorDecorator.java",
     "io/wiretap/applog/extra/ExtraAppLogContextKeeper.java",
     "io/wiretap/applog/provider/LazyStandardLogFieldsProvider.java",
@@ -180,6 +184,8 @@ val overlayMainFiles = listOf(
     "io/wiretap/util/JsonBodyUtils.java",
 )
 val overlayTestFiles = listOf(
+    // Excluded; no overlay ships — the decorator it covered no longer exists on SB4
+    // (see the overlayMainFiles note above).
     "io/wiretap/applog/decorator/WiretapPrettyJsonGeneratorDecoratorTest.java",
     "io/wiretap/applog/provider/WiretapDelegatingLogFieldProviderTest.java",
     "io/wiretap/applog/provider/WiretapPrettyStackTraceProviderTest.java",
@@ -222,6 +228,25 @@ fun rewriteForSpringBoot4(line: String): String =
         .replace(
             "org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration",
             "org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration"
+        )
+
+// Spring Boot 4 ships logstash-logback-encoder 9.0 (Jackson 3), which dropped
+// JsonGenerator.setPrettyPrinter() — so the canonical <jsonGeneratorDecorator>
+// pretty-print wiring (a JsonGeneratorDecorator on 3.x / logstash 8.1) is a no-op
+// here. logstash 9.0 configures pretty-printing on the mapper builder instead,
+// via PrettyPrintingDecorator; its setIndentArraysWithNewLine reproduces wiretap's
+// vertical scalar arrays (e.g. the stack_trace array). Rewrite the shared logback
+// appender XMLs to register it through the generic <decorator> element
+// (CompositeJsonEncoder.addDecorator). Applied in processResources below.
+fun rewriteResourceForSpringBoot4(line: String): String =
+    line
+        .replace(
+            "<jsonGeneratorDecorator class=\"io.wiretap.applog.decorator.WiretapPrettyJsonGeneratorDecorator\"/>",
+            "<decorator class=\"net.logstash.logback.decorate.PrettyPrintingDecorator\"><indentArraysWithNewLine>true</indentArraysWithNewLine></decorator>"
+        )
+        .replace(
+            "<jsonGeneratorDecorator class=\"net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator\"/>",
+            "<decorator class=\"net.logstash.logback.decorate.PrettyPrintingDecorator\"/>"
         )
 
 val rewriteMainSources = tasks.register<Copy>("rewriteMainSources") {
@@ -267,6 +292,24 @@ sourceSets {
 tasks.named<JavaCompile>("compileJava") {
     dependsOn(rewriteMainSources)
     dependsOn(tasks.named("processResources"))
+}
+
+// The logback appender XMLs are shared verbatim from the root module
+// (sourceSets.main.resources points at the root src/main/resources). Rewrite the
+// pretty-print decorator wiring for logstash 9.0 / Jackson 3 as resources are
+// processed — only the four appender files are touched; every other resource is
+// copied unchanged.
+tasks.processResources {
+    filesMatching(
+        listOf(
+            "**/logback-console-appender.xml",
+            "**/logback-file-appender.xml",
+            "**/logback-access-console-appender.xml",
+            "**/logback-access-file-appender.xml",
+        )
+    ) {
+        filter { rewriteResourceForSpringBoot4(it) }
+    }
 }
 tasks.named<JavaCompile>("compileTestJava") {
     dependsOn(rewriteTestSources)
