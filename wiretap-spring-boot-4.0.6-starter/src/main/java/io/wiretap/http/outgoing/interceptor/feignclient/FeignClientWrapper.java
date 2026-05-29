@@ -30,6 +30,7 @@ import io.wiretap.metrics.BodyMetricsContext;
 import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
+import io.wiretap.util.HttpStatusClassifier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -108,7 +109,7 @@ public class FeignClientWrapper implements Client {
         try {
             bufferedResponse = getBufferedResponse(request, options, requestHttpInfoOptional, requestStopWatch);
         } catch (IOException | RuntimeException e) {
-            metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, "exception", "exception");
+            metrics.recordHttpRequest(startNanos, 0L, DIRECTION, CLIENT, "exception", "exception");
             throw e;
         }
         requestStopWatch.stop();
@@ -119,8 +120,8 @@ public class FeignClientWrapper implements Client {
         fullHttpInfo.ifPresent(this::logRequest);
 
         int status = bufferedResponse.status();
-        metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, outcomeOf(status), statusGroup(status));
         recordBodySizes(request, bufferedResponse);
+        metrics.recordHttpRequest(startNanos, requestStopWatch.getTotalTimeNanos(), DIRECTION, CLIENT, HttpStatusClassifier.outcome(status), HttpStatusClassifier.statusGroup(status));
 
         return bufferedResponse;
     }
@@ -143,21 +144,6 @@ public class FeignClientWrapper implements Client {
                         BodyMetricsContext.classify(getContentType(response.headers())), "response", respLen);
             }
         } catch (Exception ignored) { /* metrics must not break the hot path */ }
-    }
-
-    private static String outcomeOf(int status) {
-        if (status >= 200 && status < 400) return "success";
-        if (status >= 400 && status < 500) return "client_error";
-        if (status >= 500 && status < 600) return "server_error";
-        return "other";
-    }
-
-    private static String statusGroup(int status) {
-        if (status >= 200 && status < 300) return "2xx";
-        if (status >= 300 && status < 400) return "3xx";
-        if (status >= 400 && status < 500) return "4xx";
-        if (status >= 500 && status < 600) return "5xx";
-        return "other";
     }
 
     @NotNull
@@ -202,7 +188,8 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
                     new String(request.body() != null? request.body() : EMPTY_BYTE_ARRAY, StandardCharsets.UTF_8),
                     requestUrl,
                     requestContentType,
-                    specificRestLogSettings.getHttpBodySettings()
+                    specificRestLogSettings.getHttpBodySettings(),
+                    new BodyMetricsContext(DIRECTION, CLIENT, BodyMetricsContext.classify(requestContentType))
             );
         };
 
@@ -227,6 +214,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
         );
     } catch (Exception e) {
         log.error("Error while providing request info of feign-client request...", e);
+        metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
         return Optional.empty();
     }
 }
@@ -237,11 +225,13 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
             final HttpInfoLogMessageSettings specificRestLogSettings = commonRestLogSettings.getRequestSettingsByUrl(requestUrl);
             // Lazy suppliers for request/response fields, evaluated only when
             // visibility settings allow that field to be logged.
+            final MediaType responseContentType = getContentType(bufferedResponse.headers());
             final Supplier<JsonNode> responseBodySupplier = () -> bodyParser.parseResponseBody(
                     new String(copyToByteArray(bufferedResponse.body().asInputStream()), StandardCharsets.UTF_8),
                     requestUrl,
-                    getContentType(bufferedResponse.headers()),
-                    specificRestLogSettings.getHttpBodySettings()
+                    responseContentType,
+                    specificRestLogSettings.getHttpBodySettings(),
+                    new BodyMetricsContext(DIRECTION, CLIENT, BodyMetricsContext.classify(responseContentType))
             );
             final Supplier<Map<String, String>> responseHeadersSupplier = getHeadersSupplier(specificRestLogSettings.getResponseHeaders(), bufferedResponse.headers());
             final FieldVisibilityMap<HttpInfoLogMessageSettings.HttpConfigurableField> visibilityMap = specificRestLogSettings.getVisibilitySettings();
@@ -256,6 +246,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(Request request) {
             return Optional.of(httpInfo);
         } catch (Exception e) {
             log.error("Error while providing response info of feign-client request...", e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
             return Optional.of(httpInfo);
         }
     }

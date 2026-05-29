@@ -30,6 +30,7 @@ import io.wiretap.metrics.BodyMetricsContext;
 import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
+import io.wiretap.util.HttpStatusClassifier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -128,7 +129,7 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
                     requestStopWatch
             );
         } catch (IOException e) {
-            metrics.recordHttpRequest(startNanos, DIRECTION, clientTag, "exception", "exception");
+            metrics.recordHttpRequest(startNanos, 0L, DIRECTION, clientTag, "exception", "exception");
             throw e;
         }
         requestStopWatch.stop();
@@ -141,8 +142,8 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
         try {
             status = bufferingResponse.getStatusCode().value();
         } catch (Exception ignored) { /* status unavailable */ }
-        metrics.recordHttpRequest(startNanos, DIRECTION, clientTag, outcomeOf(status), statusGroup(status));
         recordBodySizes(httpRequest, bytes, bufferingResponse);
+        metrics.recordHttpRequest(startNanos, requestStopWatch.getTotalTimeNanos(), DIRECTION, clientTag, HttpStatusClassifier.outcome(status), HttpStatusClassifier.statusGroup(status));
         return bufferingResponse;
     }
 
@@ -158,23 +159,6 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
                 metrics.recordHttpBodySize(DIRECTION, clientTag, respClass, "response", bytes);
             }
         } catch (Exception ignored) { /* metrics must not break the hot path */ }
-    }
-
-    private static String outcomeOf(int status) {
-        if (status < 0) return "exception";
-        if (status >= 200 && status < 400) return "success";
-        if (status >= 400 && status < 500) return "client_error";
-        if (status >= 500 && status < 600) return "server_error";
-        return "other";
-    }
-
-    private static String statusGroup(int status) {
-        if (status < 0) return "exception";
-        if (status >= 200 && status < 300) return "2xx";
-        if (status >= 300 && status < 400) return "3xx";
-        if (status >= 400 && status < 500) return "4xx";
-        if (status >= 500 && status < 600) return "5xx";
-        return "other";
     }
 
     @NotNull
@@ -213,7 +197,8 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
         final Supplier<JsonNode> requestBodySupplier = () -> {
             final MediaType requestContentType = getContentType(httpRequest.getHeaders());
             return bodyParser.parseRequestBody(
-                    new String(bodyBytes, StandardCharsets.UTF_8), requestUrl, requestContentType, specificRestLogSettings.getHttpBodySettings()
+                    new String(bodyBytes, StandardCharsets.UTF_8), requestUrl, requestContentType, specificRestLogSettings.getHttpBodySettings(),
+                    new BodyMetricsContext(DIRECTION, clientTag, BodyMetricsContext.classify(requestContentType))
             );
         };
 
@@ -237,6 +222,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
         );
     } catch (Exception e) {
         log.error("Error while providing request info of {} request...", clientName, e);
+        metrics.recordHttpBodyCaptureFailure(DIRECTION, clientTag, "capture");
         return Optional.empty();
     }
 }
@@ -247,8 +233,10 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
             final HttpInfoLogMessageSettings specificRestLogSettings = commonRestLogSettings.getRequestSettingsByUrl(requestUrl);
             // Lazy suppliers for request/response fields, evaluated only when
             // visibility settings allow that field to be logged.
+            final MediaType responseContentType = getContentType(bufferingResponse.getHeaders());
             final Supplier<JsonNode> responseBodySupplier = () -> bodyParser.parseResponseBody(
-                    bufferingResponse, requestUrl, getContentType(bufferingResponse.getHeaders()), specificRestLogSettings.getHttpBodySettings()
+                    bufferingResponse, requestUrl, responseContentType, specificRestLogSettings.getHttpBodySettings(),
+                    new BodyMetricsContext(DIRECTION, clientTag, BodyMetricsContext.classify(responseContentType))
             );
 
             final Supplier<Map<String, String>> responseHeadersSupplier = getHeadersSupplier(specificRestLogSettings.getResponseHeaders(), bufferingResponse.getHeaders());
@@ -263,6 +251,7 @@ private Optional<HttpMessageInfo> getRequestHttpInfo(byte[] bodyBytes, HttpReque
             return Optional.of(httpInfo);
         } catch (Exception e) {
             log.error("Error while providing response info of {} request...", clientName, e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, clientTag, "capture");
             SourcePortLocalThreadKeeper.clear();
             return Optional.of(httpInfo);
         }

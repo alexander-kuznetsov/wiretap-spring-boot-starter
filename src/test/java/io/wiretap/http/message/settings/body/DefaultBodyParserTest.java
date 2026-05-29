@@ -2,6 +2,11 @@ package io.wiretap.http.message.settings.body;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.wiretap.metrics.BodyMetricsContext;
+import io.wiretap.metrics.WiretapMetricsImpl;
+import io.wiretap.metrics.WiretapMetricsProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
@@ -117,5 +122,26 @@ class DefaultBodyParserTest {
                 MediaType.APPLICATION_JSON, maskingOn);
 
         assertThat(result.get("remaining_auth").asText()).isEqualTo("MASKED");
+    }
+
+    @Test
+    void phaseTimers_carryProvidedMetricsContext_whenDetailedTimingsOn() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        WiretapMetricsProperties props = new WiretapMetricsProperties();
+        props.setDetailedTimings(true);
+        DefaultBodyParser parser = new DefaultBodyParser(null, List.of(), new WiretapMetricsImpl(registry, props));
+
+        // 5-arg overload threads the caller's context into wiretap.body.phase tags
+        parser.parseResponseBody(CARD_LIMITS_JSON, OTHER_URL, MediaType.APPLICATION_JSON, maskingOn,
+                new BodyMetricsContext("outgoing", "feign", "json"));
+
+        Timer parse = registry.find("wiretap.body.phase")
+                .tags("phase", "parse", "direction", "outgoing", "client", "feign", "content_type_class", "json")
+                .timer();
+        assertThat(parse).as("parse phase tagged with the supplied context").isNotNull();
+        assertThat(parse.count()).isEqualTo(1);
+        assertThat(registry.find("wiretap.body.phase").tags("client", "unknown").timer())
+                .as("HTTP phase timers must no longer fall back to the NONE/unknown context")
+                .isNull();
     }
 }

@@ -1,6 +1,7 @@
 package io.wiretap.http.incoming.provider.httpinfo;
 
 import ch.qos.logback.access.common.spi.IAccessEvent;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -21,6 +22,9 @@ import io.wiretap.configuration.WiretapAccessLogFieldsProperties;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
+import io.wiretap.metrics.BodyMetricsContext;
+import io.wiretap.metrics.NoOpWiretapMetrics;
+import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
 
@@ -50,6 +54,8 @@ import org.jetbrains.annotations.Nullable;
  */
 @Slf4j
 public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEvent> {
+    private static final String DIRECTION = "incoming";
+    private static final String CLIENT = "servlet";
     private final BodyParser bodyParser;
     private final RestControllerLogMessageSettings logSettings;
     private final ObjectMapper mapper;
@@ -59,6 +65,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
     private final HttpUrlMaskingHandler urlMaskingHandler;
     @Nullable
     private final HttpRequestParamsMaskingHandler paramsMaskingHandler;
+    private final WiretapMetrics metrics;
 
     public HttpInfoMessageProvider(
             final BodyParser bodyParser,
@@ -66,7 +73,8 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
             @Value("${wiretap.pretty-print:false}") boolean isPrettyLog,
             final WiretapAccessLogFieldsProperties fieldNames,
             @Nullable HttpUrlMaskingHandler urlMaskingHandler,
-            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler
+            @Nullable HttpRequestParamsMaskingHandler paramsMaskingHandler,
+            WiretapMetrics metrics
     ) {
         super();
         this.bodyParser = bodyParser;
@@ -77,6 +85,7 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
         this.httpFieldNames = fieldNames.getHttp();
         this.urlMaskingHandler = urlMaskingHandler;
         this.paramsMaskingHandler = paramsMaskingHandler;
+        this.metrics = metrics == null ? new NoOpWiretapMetrics() : metrics;
     }
 
     @PostConstruct
@@ -99,13 +108,15 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
                 final MediaType responseContentType = Optional.ofNullable(event.getResponseHeaderMap().get(HttpHeaders.CONTENT_TYPE))
                         .map(MediaType::valueOf)
                         .orElse(null);
-                return bodyParser.parseResponseBody(responseBodyWithFallback(event.getResponseContent(), buffered), requestUrl, responseContentType, specificLogSettings.getHttpBodySettings());
+                return bodyParser.parseResponseBody(responseBodyWithFallback(event.getResponseContent(), buffered), requestUrl, responseContentType, specificLogSettings.getHttpBodySettings(),
+                        new BodyMetricsContext("incoming", "servlet", BodyMetricsContext.classify(responseContentType)));
             };
             final Supplier<JsonNode> requestBodySupplier = () -> {
                 final MediaType requestContentType = Optional.ofNullable(event.getRequestHeaderMap().get(HttpHeaders.CONTENT_TYPE))
                         .map(MediaType::valueOf)
                         .orElse(null);
-                return bodyParser.parseRequestBody(requestBodyWithFallback(event.getRequestContent(), buffered), requestUrl, requestContentType, specificLogSettings.getHttpBodySettings());
+                return bodyParser.parseRequestBody(requestBodyWithFallback(event.getRequestContent(), buffered), requestUrl, requestContentType, specificLogSettings.getHttpBodySettings(),
+                        new BodyMetricsContext("incoming", "servlet", BodyMetricsContext.classify(requestContentType)));
             };
 
 
@@ -135,13 +146,36 @@ public class HttpInfoMessageProvider extends AbstractFieldJsonProvider<IAccessEv
                     .responseHeaders(visibilityMap.getVisible(RESPONSE_HEADERS, responseHeadersSupplier))
                     .build();
 
-            generator.writeRawValue(
-                    isPrettyLog ?
-                            mapper.writerWithDefaultPrettyPrinter().writeValueAsString(message.toMap(httpFieldNames)) :
-                            mapper.writer().writeValueAsString(message.toMap(httpFieldNames))
-            );
+            recordBodySizes(event, buffered);
+
+            final String json;
+            try {
+                json = isPrettyLog
+                        ? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(message.toMap(httpFieldNames))
+                        : mapper.writer().writeValueAsString(message.toMap(httpFieldNames));
+            } catch (JacksonException e) {
+                log.error("Error while serialising http-info...", e);
+                metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "serialize");
+                return;
+            }
+            generator.writeRawValue(json);
         } catch (Throwable e) {
             log.error("Error while providing to log http-info...", e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
+        }
+    }
+
+    /** Emits {@code wiretap.http.body.size} for the captured request/response, classified by Content-Type. */
+    private void recordBodySizes(IAccessEvent event, @Nullable BufferedHttpMessageInfo buffered) {
+        try {
+            metrics.recordHttpBodySize(DIRECTION, CLIENT,
+                    BodyMetricsContext.classify(getContentType(event.getRequestHeaderMap())),
+                    "request", requestBodyLengthWithFallback(event, buffered));
+            metrics.recordHttpBodySize(DIRECTION, CLIENT,
+                    BodyMetricsContext.classify(getContentType(event.getResponseHeaderMap())),
+                    "response", responseBodyLengthWithFallback(event, buffered));
+        } catch (Throwable ignored) {
+            // metrics must never break access-log encoding
         }
     }
 

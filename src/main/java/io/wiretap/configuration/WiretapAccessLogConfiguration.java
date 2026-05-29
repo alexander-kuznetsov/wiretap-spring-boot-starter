@@ -1,5 +1,6 @@
 package io.wiretap.configuration;
 
+import io.wiretap.http.incoming.encoder.LazyJsonAccessEncoder;
 import io.wiretap.http.incoming.provider.WiretapAccessFieldProvider;
 import io.wiretap.http.incoming.provider.WiretapDelegatingFieldProvider;
 import io.wiretap.metrics.WiretapMetrics;
@@ -14,6 +15,6 @@ public class WiretapAccessLogConfiguration {
     @Autowired
     public WiretapAccessLogConfiguration(List<WiretapAccessFieldProvider> providers, WiretapMetrics metrics) {
         WiretapDelegatingFieldProvider.setProviders(providers);
-        WiretapDelegatingFieldProvider.setMetrics(metrics);
+        LazyJsonAccessEncoder.setMetrics(metrics);
     }
 }

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,7 +36,7 @@ class WiretapMetricsImplTest {
     void recordHttpRequest_emitsTimerAndCounterWithExpectedTags() {
         long start = metrics.startSample();
 
-        metrics.recordHttpRequest(start, "outgoing", "webclient", "success", "2xx");
+        metrics.recordHttpRequest(start, 0L, "outgoing", "webclient", "success", "2xx");
 
         Timer timer = registry.find("wiretap.http.overhead")
                 .tags("direction", "outgoing", "client", "webclient", "outcome", "success", "status", "2xx")
@@ -83,6 +84,28 @@ class WiretapMetricsImplTest {
     }
 
     @Test
+    void recordHttpBodyCaptureFailure_incrementsCounterWithPhaseTag() {
+        metrics.recordHttpBodyCaptureFailure("outgoing", "feign", "capture");
+
+        Counter counter = registry.find("wiretap.http.body.capture.failures")
+                .tags("direction", "outgoing", "client", "feign", "phase", "capture")
+                .counter();
+        assertThat(counter).isNotNull();
+        assertThat(counter.count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void recordKafkaBodyCaptureFailure_incrementsCounterWithPhaseTag() {
+        metrics.recordKafkaBodyCaptureFailure("consumer", "serialize");
+
+        Counter counter = registry.find("wiretap.kafka.body.capture.failures")
+                .tags("direction", "consumer", "phase", "serialize")
+                .counter();
+        assertThat(counter).isNotNull();
+        assertThat(counter.count()).isEqualTo(1.0);
+    }
+
+    @Test
     void recordKafkaMessage_dropsTopicTagByDefault() {
         long start = metrics.startSample();
         metrics.recordKafkaMessage(start, "producer", "success", "orders.events");
@@ -114,13 +137,57 @@ class WiretapMetricsImplTest {
         properties.getTags().setStatus(false);
         long start = metrics.startSample();
 
-        metrics.recordHttpRequest(start, "outgoing", "webclient", "success", "2xx");
+        metrics.recordHttpRequest(start, 0L, "outgoing", "webclient", "success", "2xx");
 
         Timer timer = registry.find("wiretap.http.overhead")
                 .tags("direction", "outgoing", "client", "webclient", "outcome", "success")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.getId().getTag("status")).isNull();
+    }
+
+    @Test
+    void recordHttpRequest_subtractsDownstreamFromOverhead() {
+        // total ≈ 100ms (startNanos pushed 100ms into the past); downstream = 30ms
+        long start = metrics.startSample() - TimeUnit.MILLISECONDS.toNanos(100);
+
+        metrics.recordHttpRequest(start, TimeUnit.MILLISECONDS.toNanos(30), "outgoing", "webclient", "success", "2xx");
+
+        Timer timer = registry.find("wiretap.http.overhead")
+                .tags("direction", "outgoing", "client", "webclient").timer();
+        assertThat(timer).isNotNull();
+        assertThat(timer.count()).isEqualTo(1);
+        // overhead = total(~100ms) - downstream(30ms) ≈ 70ms: strictly between 0 and total
+        assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isGreaterThan(0.0).isLessThan(100.0);
+    }
+
+    @Test
+    void recordHttpRequest_clampsNegativeOverheadToZero() {
+        // downstream larger than total → guard clamps overhead to 0
+        long start = metrics.startSample();
+
+        metrics.recordHttpRequest(start, TimeUnit.MILLISECONDS.toNanos(5000), "outgoing", "webclient", "success", "2xx");
+
+        Timer timer = registry.find("wiretap.http.overhead")
+                .tags("direction", "outgoing", "client", "webclient").timer();
+        assertThat(timer).isNotNull();
+        assertThat(timer.count()).isEqualTo(1);
+        assertThat(timer.totalTime(TimeUnit.NANOSECONDS)).isEqualTo(0.0);
+    }
+
+    @Test
+    void recordHttpRequest_overheadIsNanosecondPrecise_notMillisFloored() {
+        // total ≈ 10ms; downstream = 9_900_000 ns (9.9ms) → real overhead ≈ 0.1ms.
+        // If the downstream were floored to whole milliseconds (9ms) the reported
+        // overhead would balloon past 1ms; nanosecond subtraction keeps it sub-ms.
+        long start = metrics.startSample() - TimeUnit.MILLISECONDS.toNanos(10);
+
+        metrics.recordHttpRequest(start, 9_900_000L, "outgoing", "feign", "success", "2xx");
+
+        Timer timer = registry.find("wiretap.http.overhead")
+                .tags("direction", "outgoing", "client", "feign").timer();
+        assertThat(timer).isNotNull();
+        assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isLessThan(1.0);
     }
 
     @Test
@@ -165,7 +232,7 @@ class WiretapMetricsImplTest {
     @Test
     void histogramsFlag_addsPercentileHistogramToTimers() {
         properties.setHistograms(true);
-        metrics.recordHttpRequest(metrics.startSample(), "outgoing", "webclient", "success", "2xx");
+        metrics.recordHttpRequest(metrics.startSample(), 0L, "outgoing", "webclient", "success", "2xx");
 
         Timer timer = registry.find("wiretap.http.overhead").timer();
         assertThat(timer).isNotNull();
@@ -183,7 +250,7 @@ class WiretapMetricsImplTest {
     void noOp_doesNotTouchRegistry() {
         WiretapMetrics noOp = new NoOpWiretapMetrics();
 
-        noOp.recordHttpRequest(noOp.startSample(), "outgoing", "webclient", "success", "2xx");
+        noOp.recordHttpRequest(noOp.startSample(), 0L, "outgoing", "webclient", "success", "2xx");
         noOp.recordKafkaMessage(noOp.startSample(), "producer", "success", "topic");
         noOp.recordHttpBodySize("outgoing", "webclient", "json", "request", 100L);
         noOp.recordHttpSkipped("outgoing", "webclient", "streaming");
@@ -193,6 +260,7 @@ class WiretapMetricsImplTest {
         noOp.recordJsonSerialization(noOp.startSample(), "http", "outgoing", "webclient");
         noOp.recordBodyMaskerInvocation(noOp.startSample(), "X", "outgoing");
         noOp.recordHttpBodyCaptureFailure("outgoing", "webclient", "parse");
+        noOp.recordKafkaBodyCaptureFailure("consumer", "capture");
 
         assertThatThrownBy(() -> registry.get("wiretap.http.overhead").timer())
                 .isInstanceOf(MeterNotFoundException.class);

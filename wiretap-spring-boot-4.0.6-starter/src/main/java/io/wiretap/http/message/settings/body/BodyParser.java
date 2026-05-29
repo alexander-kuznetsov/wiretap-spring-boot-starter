@@ -1,6 +1,7 @@
 package io.wiretap.http.message.settings.body;
 
 import tools.jackson.databind.JsonNode;
+import io.wiretap.metrics.BodyMetricsContext;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
 
@@ -50,4 +51,24 @@ public interface BodyParser {
             MediaType contentType,
             HttpBodySettings settings
     ) throws IOException;
+
+    /**
+     * Metrics-aware variant of {@link #parseRequestBody(String, String, MediaType, HttpBodySettings)}.
+     * The {@code metricsContext} (direction / client / content-type class) tags the
+     * {@code wiretap.body.phase} timers emitted while parsing. The default implementation
+     * ignores it and delegates, so existing {@link BodyParser} implementations keep working.
+     */
+    default JsonNode parseRequestBody(String body, String requestUrl, MediaType contentType, HttpBodySettings settings, BodyMetricsContext metricsContext) {
+        return parseRequestBody(body, requestUrl, contentType, settings);
+    }
+
+    /** Metrics-aware variant of {@link #parseResponseBody(String, String, MediaType, HttpBodySettings)}. */
+    default JsonNode parseResponseBody(String body, String requestUrl, MediaType contentType, HttpBodySettings settings, BodyMetricsContext metricsContext) {
+        return parseResponseBody(body, requestUrl, contentType, settings);
+    }
+
+    /** Metrics-aware variant of {@link #parseResponseBody(ClientHttpResponse, String, MediaType, HttpBodySettings)}. */
+    default JsonNode parseResponseBody(ClientHttpResponse bufferingResponse, String requestUrl, MediaType contentType, HttpBodySettings settings, BodyMetricsContext metricsContext) throws IOException {
+        return parseResponseBody(bufferingResponse, requestUrl, contentType, settings);
+    }
 }

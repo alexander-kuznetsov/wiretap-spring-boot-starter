@@ -9,6 +9,7 @@ import io.wiretap.http.message.HttpRequestParamsMaskingHandler;
 import io.wiretap.http.message.HttpUrlMaskingHandler;
 import io.wiretap.http.message.settings.RestControllerLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
+import io.wiretap.metrics.WiretapMetrics;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -45,9 +46,10 @@ public class IncomingHttpConfiguration implements WebMvcConfigurer {
             @Value("${wiretap.pretty-print:false}") boolean isPrettyLog,
             WiretapAccessLogFieldsProperties fieldNames,
             @Autowired(required = false) HttpUrlMaskingHandler urlMaskingHandler,
-            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler
+            @Autowired(required = false) HttpRequestParamsMaskingHandler paramsMaskingHandler,
+            WiretapMetrics metrics
     ) {
-        return new HttpInfoMessageProvider(bodyParser, logSettings, isPrettyLog, fieldNames, urlMaskingHandler, paramsMaskingHandler);
+        return new HttpInfoMessageProvider(bodyParser, logSettings, isPrettyLog, fieldNames, urlMaskingHandler, paramsMaskingHandler, metrics);
     }
 
     @Bean

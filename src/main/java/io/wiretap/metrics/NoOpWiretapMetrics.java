@@ -17,7 +17,7 @@ public final class NoOpWiretapMetrics implements WiretapMetrics {
     }
 
     @Override
-    public void recordHttpRequest(long startNanos, String direction, String client, String outcome, String status) { }
+    public void recordHttpRequest(long startNanos, long downstreamNanos, String direction, String client, String outcome, String status) { }
 
     @Override
     public void recordHttpSkipped(String direction, String client, String reason) { }
@@ -36,6 +36,9 @@ public final class NoOpWiretapMetrics implements WiretapMetrics {
 
     @Override
     public void recordKafkaMessageSize(String direction, long bytes, String topic) { }
+
+    @Override
+    public void recordKafkaBodyCaptureFailure(String direction, String phase) { }
 
     @Override
     public void recordPhase(long startNanos, BodyMetricsContext context, String phase) { }

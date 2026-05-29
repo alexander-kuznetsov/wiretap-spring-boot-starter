@@ -31,6 +31,7 @@ public final class WiretapMetricsImpl implements WiretapMetrics {
     private static final String M_KAFKA_MESSAGES = "wiretap.kafka.messages";
     private static final String M_KAFKA_SKIPPED = "wiretap.kafka.skipped";
     private static final String M_KAFKA_MSG_SIZE = "wiretap.kafka.message.size";
+    private static final String M_KAFKA_BODY_FAIL = "wiretap.kafka.body.capture.failures";
     private static final String M_BODY_PHASE = "wiretap.body.phase";
     private static final String M_JSON_SERIALIZATION = "wiretap.json.serialization";
     private static final String M_BODY_MASKER = "wiretap.body.masker.invocation";
@@ -51,7 +52,7 @@ public final class WiretapMetricsImpl implements WiretapMetrics {
     // ----- HTTP -------------------------------------------------------------
 
     @Override
-    public void recordHttpRequest(long startNanos, String direction, String client, String outcome, String status) {
+    public void recordHttpRequest(long startNanos, long downstreamNanos, String direction, String client, String outcome, String status) {
         Tags tags = Tags.of(
                 Tag.of("direction", direction),
                 Tag.of("client", client),
@@ -59,7 +60,13 @@ public final class WiretapMetricsImpl implements WiretapMetrics {
         if (props.getTags().isStatus()) {
             tags = tags.and("status", status);
         }
-        httpTimer(M_HTTP_OVERHEAD, tags).record(elapsed(startNanos), TimeUnit.NANOSECONDS);
+        // wiretap-attributable overhead only: subtract the downstream call time
+        // (nanoseconds on both sides — no millisecond quantisation)
+        long overheadNanos = elapsed(startNanos) - downstreamNanos;
+        if (overheadNanos < 0L) {
+            overheadNanos = 0L;
+        }
+        httpTimer(M_HTTP_OVERHEAD, tags).record(overheadNanos, TimeUnit.NANOSECONDS);
         Counter.builder(M_HTTP_REQUESTS).tags(tags).register(registry).increment();
     }
 
@@ -126,6 +133,14 @@ public final class WiretapMetricsImpl implements WiretapMetrics {
                 .publishPercentileHistogram(props.isHistograms())
                 .register(registry)
                 .record(bytes);
+    }
+
+    @Override
+    public void recordKafkaBodyCaptureFailure(String direction, String phase) {
+        Counter.builder(M_KAFKA_BODY_FAIL)
+                .tags("direction", direction, "phase", phase)
+                .register(registry)
+                .increment();
     }
 
     // ----- Phase-level ------------------------------------------------------

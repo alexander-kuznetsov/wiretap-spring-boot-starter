@@ -1,5 +1,6 @@
 package io.wiretap.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.wiretap.kafka.message.KafkaHeaderMaskingHandler;
@@ -102,7 +103,14 @@ public class KafkaLogSink {
 
             final KafkaMessageInfo masked = applyVisibilityAndMasking(info, effective, visibility, direction);
             long serStart = metrics.startSample();
-            final String json = mapper.writeValueAsString(masked.toMap(fieldNames));
+            final String json;
+            try {
+                json = mapper.writeValueAsString(masked.toMap(fieldNames));
+            } catch (JsonProcessingException e) {
+                log.error("Error while serialising kafka info", e);
+                metrics.recordKafkaBodyCaptureFailure(direction, "serialize");
+                return;
+            }
             metrics.recordJsonSerialization(serStart, "kafka", direction, "kafka");
 
             try (MDC.MDCCloseable ignored = MDC.putCloseable(MDC_KEY, json)) {
@@ -113,6 +121,7 @@ public class KafkaLogSink {
             }
         } catch (Exception e) {
             log.error("Error while logging kafka info", e);
+            metrics.recordKafkaBodyCaptureFailure(direction, "capture");
         }
     }
 

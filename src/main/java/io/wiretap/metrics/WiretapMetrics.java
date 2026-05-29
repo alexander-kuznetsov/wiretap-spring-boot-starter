@@ -58,8 +58,17 @@ public interface WiretapMetrics {
 
     // ----- HTTP -------------------------------------------------------------
 
-    /** Record {@code wiretap.http.overhead} + {@code wiretap.http.requests} for a completed HTTP request. */
-    void recordHttpRequest(long startNanos, String direction, String client, String outcome, String status);
+    /**
+     * Record {@code wiretap.http.overhead} + {@code wiretap.http.requests} for a completed HTTP request.
+     * <p>{@code overhead} is the wiretap-attributable time only: it is computed as
+     * {@code (now - startNanos) - downstreamNanos}, so the downstream call itself
+     * (the time spent waiting on the remote service and receiving its body, for
+     * outgoing clients) is excluded. Both operands are nanoseconds, so the result
+     * carries no millisecond quantisation. Pass {@code downstreamNanos = 0} when
+     * there is no downstream call to subtract (incoming/servlet, where the request
+     * is already complete by the time the access log is rendered).
+     */
+    void recordHttpRequest(long startNanos, long downstreamNanos, String direction, String client, String outcome, String status);
 
     /** Record {@code wiretap.http.skipped} — a request matched a skip rule and produced no log line. */
     void recordHttpSkipped(String direction, String client, String reason);
@@ -80,6 +89,14 @@ public interface WiretapMetrics {
 
     /** Record {@code wiretap.kafka.message.size} — total bytes of the message value. */
     void recordKafkaMessageSize(String direction, long bytes, String topic);
+
+    /**
+     * Record {@code wiretap.kafka.body.capture.failures} — an exception escaped a
+     * Kafka body-processing phase. Kafka counterpart of
+     * {@link #recordHttpBodyCaptureFailure}: {@code phase=capture} for masking /
+     * parsing failures, {@code phase=serialize} for JSON serialisation failures.
+     */
+    void recordKafkaBodyCaptureFailure(String direction, String phase);
 
     // ----- Phase-level (detailed-timings flag) ------------------------------
 

@@ -1,5 +1,6 @@
 package io.wiretap.http.outgoing.interceptor.webservicetemplate;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -24,9 +25,11 @@ import io.wiretap.http.message.settings.HttpInfoLogMessageSettings.HttpConfigura
 import io.wiretap.http.message.settings.WebServiceTemplateLogMessageSettings;
 import io.wiretap.http.message.settings.body.BodyParser;
 import io.wiretap.http.outgoing.interceptor.Supplier;
+import io.wiretap.metrics.BodyMetricsContext;
 import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.util.FieldVisibilityMap;
 import io.wiretap.util.HeaderSelector;
+import io.wiretap.util.HttpStatusClassifier;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
@@ -151,18 +154,24 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
             long startTime = (long) messageContext.getProperty(STARTED_AT);
             long duration = System.currentTimeMillis() - startTime;
 
+            // The SOAP round-trip is complete by the time this hook runs, so the
+            // span from request start to here is downstream; getLogMessage (body
+            // parse) and logRequest (serialise) below are the wiretap overhead.
+            // Captured in nanoseconds so the overhead carries no millisecond
+            // quantisation; the duration field (ms) stays the user-facing latency.
+            Object startNanosObj = messageContext.getProperty(METRICS_START_NANOS);
+            long downstreamNanos = startNanosObj instanceof Long s ? metrics.startSample() - s : 0L;
+
             final HttpMessageInfo httpMessageInfo = getLogMessage(messageContext, duration);
             logRequest(httpMessageInfo);
 
-            Object startNanosObj = messageContext.getProperty(METRICS_START_NANOS);
             if (startNanosObj instanceof Long startNanos) {
                 if (httpMessageInfo == null) {
                     metrics.recordHttpSkipped(DIRECTION, CLIENT, "exclude_pattern");
                 } else {
                     int status = httpMessageInfo.getReturnCode() == null ? -1 : httpMessageInfo.getReturnCode();
-                    String outcome = failure ? "exception" : outcomeOf(status);
-                    String statusGroup = failure ? "exception" : statusGroup(status);
-                    metrics.recordHttpRequest(startNanos, DIRECTION, CLIENT, outcome, statusGroup);
+                    String outcome = failure ? "exception" : HttpStatusClassifier.outcome(status);
+                    String statusGroup = failure ? "exception" : HttpStatusClassifier.statusGroup(status);
                     Long reqLen = httpMessageInfo.getRequestBodyLength();
                     Long respLen = httpMessageInfo.getResponseBodyLength();
                     if (reqLen != null && reqLen >= 0) {
@@ -171,29 +180,13 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
                     if (respLen != null && respLen >= 0) {
                         metrics.recordHttpBodySize(DIRECTION, CLIENT, "xml", "response", respLen);
                     }
+                    metrics.recordHttpRequest(startNanos, downstreamNanos, DIRECTION, CLIENT, outcome, statusGroup);
                 }
             }
         } catch (Exception e) {
             log.error("Error while providing to log web-service-template http-info...", e);
             metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
         }
-    }
-
-    private static String outcomeOf(int status) {
-        if (status < 0) return "exception";
-        if (status >= 200 && status < 400) return "success";
-        if (status >= 400 && status < 500) return "client_error";
-        if (status >= 500 && status < 600) return "server_error";
-        return "other";
-    }
-
-    private static String statusGroup(int status) {
-        if (status < 0) return "exception";
-        if (status >= 200 && status < 300) return "2xx";
-        if (status >= 300 && status < 400) return "3xx";
-        if (status >= 400 && status < 500) return "4xx";
-        if (status >= 500 && status < 600) return "5xx";
-        return "other";
     }
 
     private HttpMessageInfo getLogMessage(MessageContext messageContext, long duration) throws URISyntaxException, IOException {
@@ -216,7 +209,8 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
                 originalRequestBodyString,
                 requestURL,
                 MediaType.APPLICATION_XML,
-                specificLogSettings.getHttpBodySettings()
+                specificLogSettings.getHttpBodySettings(),
+                new BodyMetricsContext(DIRECTION, CLIENT, "xml")
         );
 
         final String originalResponseBodyString = messageContext.hasResponse() ? convertDOMSourceToString(messageContext.getResponse().getPayloadSource()) : null;
@@ -225,7 +219,8 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
                         originalResponseBodyString,
                         requestURL,
                         MediaType.APPLICATION_XML,
-                        specificLogSettings.getHttpBodySettings()
+                        specificLogSettings.getHttpBodySettings(),
+                        new BodyMetricsContext(DIRECTION, CLIENT, "xml")
                 ) : null;
         final FieldVisibilityMap<HttpConfigurableField> visibilityMap = specificLogSettings.getVisibilitySettings();
         final String requestBodyString = getStringBody(visibilityMap.getVisible(REQUEST_BODY, requestBodySupplier));
@@ -294,7 +289,14 @@ public class WebServiceTemplateLoggingInterceptor extends ClientInterceptorAdapt
             return;
         }
         long serStart = metrics.startSample();
-        final String stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
+        final String stringLogMessage;
+        try {
+            stringLogMessage = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(logMessage.toMap(httpFieldNames));
+        } catch (JacksonException e) {
+            log.error("Error while serialising web-service-template http-info...", e);
+            metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "serialize");
+            return;
+        }
         metrics.recordJsonSerialization(serStart, "http", DIRECTION, CLIENT);
 
         try (final MDC.MDCCloseable ignored = MDC.putCloseable(CUSTOM_LOG_MESSAGE, stringLogMessage)) {

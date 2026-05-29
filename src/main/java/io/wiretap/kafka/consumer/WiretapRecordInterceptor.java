@@ -97,7 +97,7 @@ public class WiretapRecordInterceptor<K, V> implements RecordInterceptor<K, V> {
             }
 
             RecordContext ctx = contextHolder.get();
-            Long duration = ctx == null ? null : (System.nanoTime() - ctx.startNanos) / 1_000_000L;
+            Long duration = ctx == null ? null : Math.round((System.nanoTime() - ctx.startNanos) / 1_000_000.0);
 
             if (MDC.get("traceId") == null) {
                 TraceContextExtractor.TraceContext trace = TraceContextExtractor.extract(record.headers());
