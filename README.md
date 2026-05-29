@@ -250,10 +250,11 @@ log records share the same shape.
 
 ## Adding custom fields (SPI)
 
-Wiretap provides two SPI interfaces for adding custom fields:
+Wiretap provides three SPI interfaces for extending what gets logged:
 
 - **`WiretapAccessFieldProvider`** — adds fields to HTTP access logs (inbound and outbound HTTP calls).
 - **`WiretapLogFieldProvider`** — adds fields to application logs (`log.info(...)`, `log.error(...)`, etc.).
+- **`HttpAccessEventPostProcessHandler`** — reacts to the fully-encoded access-log JSON (e.g. publishes business metrics derived from response body) — see [Post-processing access-log events](#post-processing-access-log-events).
 
 ### HTTP access log fields
 
@@ -293,6 +294,70 @@ Note that Logback-access and SLF4J MDC run in separate contexts. Fields that are
 available via `IAccessEvent` (e.g. request headers) are not accessible inside
 `WiretapLogFieldProvider` — read them from MDC keys set upstream via
 `WiretapHeadersProperties` or a servlet filter.
+
+### Post-processing access-log events
+
+For workloads that need to react to the *fully-encoded* access-log JSON — for
+example to publish a Micrometer counter tagged by a field extracted from the
+response body — implement `HttpAccessEventPostProcessHandler`:
+
+```java
+public interface HttpAccessEventPostProcessHandler {
+    void performPostProcess(byte[] encodedBytes);
+}
+```
+
+Wiretap calls `performPostProcess(...)` from `LazyJsonAccessEncoder.encode()`
+*after* the access-log line has been serialised to JSON and *before* it
+reaches the appender. Register a Spring bean — Wiretap picks it up
+automatically via `@ConditionalOnBean`:
+
+```java
+@Component
+public class PaymentDecisionMetricsHandler implements HttpAccessEventPostProcessHandler {
+
+    private final MeterRegistry registry;
+    private final ObjectMapper mapper;
+
+    public PaymentDecisionMetricsHandler(MeterRegistry registry, ObjectMapper mapper) {
+        this.registry = registry;
+        this.mapper = mapper;
+    }
+
+    @Override
+    public void performPostProcess(byte[] encodedBytes) {
+        try {
+            JsonNode root = mapper.readTree(encodedBytes);
+            String url = root.at("/http_info/request/url").asText();
+            if (!url.contains("/payments/")) return;
+            String decision = root.at("/http_info/response/body/decision").asText("unknown");
+            registry.counter("payments.decision", "outcome", decision).increment();
+        } catch (IOException ignored) {
+            // never let the post-processor break the logging pipeline
+        }
+    }
+}
+```
+
+Common use cases:
+
+- Publish Micrometer counters or distributions tagged by fields extracted
+  from the response body (payment amount, decision code, partner ID).
+- Emit a parallel audit event to a separate sink (e.g. an audit topic)
+  without re-parsing the same payload in business code.
+- Sample-based forensic capture: record 1/1000 raw access lines to a
+  cold-storage bucket for later replay.
+
+**Constraints:**
+
+- The handler runs synchronously on the logging thread (or, when
+  `wiretap.async-logging.enabled=true`, on the `AsyncAppender` thread).
+  Keep it lock-free and bounded — long-running work backs up the logging
+  pipeline.
+- Throw nothing. Wrap parsing in `try/catch` — exceptions inside the
+  post-processor must not break the calling logger.
+- Only one handler is invoked per access-log event. If you need to fan
+  out to multiple subscribers, write a dispatching handler.
 
 ## Header forwarding
 
@@ -1050,21 +1115,35 @@ Always published (when enabled and a `MeterRegistry` is present):
 
 | Metric                              | Type                 | Tags                                                   | Notes |
 |-------------------------------------|----------------------|--------------------------------------------------------|-------|
-| `wiretap.http.overhead`             | Timer (seconds)      | `direction`, `client`, `outcome`, `status`             | Full pipeline overhead per HTTP request |
+| `wiretap.http.overhead`             | Timer (seconds)      | `direction`, `client`, `outcome`, `status`             | Wiretap-attributable overhead per HTTP request — the downstream call time is excluded (see note below) |
 | `wiretap.http.requests`             | Counter              | `direction`, `client`, `outcome`, `status`             | Co-emitted with the timer |
 | `wiretap.http.skipped`              | Counter              | `direction`, `client`, `reason`                        | Requests that bypassed logging |
 | `wiretap.http.body.size`            | DistributionSummary (bytes) | `direction`, `client`, `content_type_class`, `kind` (`request`/`response`) | Captured body size |
-| `wiretap.http.body.capture.failures`| Counter              | `direction`, `client`, `phase`                         | Exceptions inside parse/mask/serialise/emit |
+| `wiretap.http.body.capture.failures`| Counter              | `direction`, `client`, `phase`                         | Body-pipeline exceptions, emitted consistently across every client (incoming servlet + all outgoing): `phase=capture` (reading/parsing the body) or `phase=serialize` (rendering the MDC JSON) |
 | `wiretap.kafka.overhead`            | Timer                | `direction` (`producer`/`consumer`), `outcome`         | Full pipeline overhead per Kafka message |
 | `wiretap.kafka.messages`            | Counter              | `direction`, `outcome`                                 | Co-emitted with the timer |
 | `wiretap.kafka.skipped`             | Counter              | `direction`, `reason`                                  | Skip causes (excluded topic / null record) |
 | `wiretap.kafka.message.size`        | DistributionSummary (bytes) | `direction`                                     | Message value size |
+| `wiretap.kafka.body.capture.failures`| Counter             | `direction`, `phase`                                   | Kafka body-pipeline exceptions — Kafka counterpart of `wiretap.http.body.capture.failures` (`phase=capture` masking/parsing, `phase=serialize` JSON rendering) |
+
+> **`wiretap.http.overhead` measures the logging cost, not request latency.** For
+> outgoing clients the downstream call time is measured in **nanoseconds** and
+> subtracted, so the timer reflects only wiretap's own work (capture, parse, mask,
+> serialise) with no millisecond rounding. The subtracted downstream is the network
+> call for RestTemplate/RestClient/Feign, the time until the response is received
+> (headers, plus the body for buffered responses) for WebClient, and the SOAP
+> round-trip for WebServiceTemplate. For incoming (servlet) there is no downstream
+> to subtract, so the timer covers the full JSON rendering of the access log in
+> `LazyJsonAccessEncoder.encode()` (every provider, including `http_info`). The
+> log's `duration`/`elapsedTime` field stays in milliseconds (the user-facing
+> latency) and is independent of this nanosecond-precise overhead timer. Enable the
+> `wiretap.metrics.detailed-timings` phase timers below for per-phase attribution.
 
 Opt-in under `wiretap.metrics.detailed-timings=true`:
 
 | Metric                          | Tags                                                  | Notes |
 |---------------------------------|-------------------------------------------------------|-------|
-| `wiretap.body.phase`            | `phase`, `direction`, `client`, `content_type_class`  | Per-phase body-processing timer. HTTP body emits `parse` / `mask` / `truncate` from `DefaultBodyParser`. Kafka body emits the same three phases from `KafkaLogSink.renderValue` with `client=kafka` and `direction=producer`/`consumer`. |
+| `wiretap.body.phase`            | `phase`, `direction`, `client`, `content_type_class`  | Per-phase body-processing timer. HTTP body emits `parse` / `mask` / `truncate` from `DefaultBodyParser`, tagged with the real `direction` (`incoming`/`outgoing`) and `client` (`servlet`/`webclient`/…) of the call. Kafka body emits the same three phases from `KafkaLogSink.renderValue` with `client=kafka` and `direction=producer`/`consumer`. |
 | `wiretap.json.serialization`    | `sink`, `direction`, `client`                         | `ObjectMapper.writeValueAsString` time |
 | `wiretap.body.masker.invocation`| `masker_class`, `direction`                           | Per `HttpBodyMaskingHandler` invocation on the HTTP side; per `KafkaValueMaskingHandler` invocation on the Kafka side (`masker_class` = handler FQN). |
 
@@ -1084,7 +1163,7 @@ Opt-in under `wiretap.async-logging.enabled=true`
 - `outcome`: `success` / `client_error` (4xx) / `server_error` (5xx) / `exception` (HTTP); `success` / `error` (Kafka).
 - `status`: `2xx` / `3xx` / `4xx` / `5xx` / `other` / `exception` — never the raw status code.
 - `content_type_class`: `json` / `xml` / `text` / `binary` / `other`.
-- `phase`: `capture` / `parse` / `mask` / `truncate` / `serialize` / `emit`.
+- `phase`: on `wiretap.body.phase` — `parse` / `mask` / `truncate`; on `wiretap.{http,kafka}.body.capture.failures` — `capture` (reading/parsing the body) / `serialize` (rendering the MDC JSON).
 - `reason`: `exclude_pattern` / `exclude_topic` / `streaming` / `unsupported_content_type` / `visibility_disabled` / `null_topic` / `null_record`.
 
 ### Scraping

@@ -247,10 +247,11 @@ wiretap:
 
 ## Добавление собственных полей (SPI)
 
-Wiretap предоставляет два SPI-интерфейса для добавления кастомных полей:
+Wiretap предоставляет три SPI-интерфейса для расширения того, что попадает в лог:
 
 - **`WiretapAccessFieldProvider`** — добавляет поля в HTTP access-логи (входящие и исходящие HTTP-вызовы).
 - **`WiretapLogFieldProvider`** — добавляет поля в логи приложения (`log.info(...)`, `log.error(...)` и т. д.).
+- **`HttpAccessEventPostProcessHandler`** — реагирует на уже сериализованную JSON-строку access-лога (например, публикует Micrometer-метрики из полей response body) — см. [Пост-обработка access-лог событий](#пост-обработка-access-лог-событий).
 
 ### Поля HTTP access-лога
 
@@ -290,6 +291,70 @@ public class TenantIdLogFieldProvider implements WiretapLogFieldProvider {
 через `IAccessEvent` (например, заголовки запроса), недоступны внутри `WiretapLogFieldProvider` —
 читайте их из MDC-ключей, установленных выше по стеку через `WiretapHeadersProperties` или
 servlet-фильтр.
+
+### Пост-обработка access-лог событий
+
+Для сценариев, где нужно реагировать на уже сериализованный JSON access-лога —
+например, опубликовать Micrometer-счётчик, тегированный полем из response body —
+реализуйте `HttpAccessEventPostProcessHandler`:
+
+```java
+public interface HttpAccessEventPostProcessHandler {
+    void performPostProcess(byte[] encodedBytes);
+}
+```
+
+Wiretap вызывает `performPostProcess(...)` из `LazyJsonAccessEncoder.encode()`
+*после* того, как строка access-лога сериализована в JSON, но *до* записи
+в appender. Зарегистрируйте Spring-бин — Wiretap подхватит его автоматически
+через `@ConditionalOnBean`:
+
+```java
+@Component
+public class PaymentDecisionMetricsHandler implements HttpAccessEventPostProcessHandler {
+
+    private final MeterRegistry registry;
+    private final ObjectMapper mapper;
+
+    public PaymentDecisionMetricsHandler(MeterRegistry registry, ObjectMapper mapper) {
+        this.registry = registry;
+        this.mapper = mapper;
+    }
+
+    @Override
+    public void performPostProcess(byte[] encodedBytes) {
+        try {
+            JsonNode root = mapper.readTree(encodedBytes);
+            String url = root.at("/http_info/request/url").asText();
+            if (!url.contains("/payments/")) return;
+            String decision = root.at("/http_info/response/body/decision").asText("unknown");
+            registry.counter("payments.decision", "outcome", decision).increment();
+        } catch (IOException ignored) {
+            // ни в коем случае не ломаем pipeline логирования
+        }
+    }
+}
+```
+
+Типичные сценарии:
+
+- Публикация Micrometer-счётчиков или distribution'ов, тегированных
+  полями из response body (сумма платежа, decision code, ID партнёра).
+- Эмит параллельного аудит-события в отдельный sink (например, audit-топик)
+  без повторного парсинга payload в бизнес-коде.
+- Sample-based forensic capture: записать 1/1000 сырых access-строк в
+  cold-storage для последующего replay.
+
+**Ограничения:**
+
+- Handler выполняется синхронно на потоке логирования (или, при
+  `wiretap.async-logging.enabled=true`, на потоке `AsyncAppender`).
+  Делайте его lock-free и ограниченным по времени — долгие операции
+  забивают pipeline.
+- Не бросайте исключения. Оборачивайте парсинг в `try/catch` — иначе
+  внутренний exception сломает вызывающий логгер.
+- На одно событие вызывается ровно один handler. Если нужен fan-out
+  нескольким подписчикам — напишите диспетчерский handler.
 
 ## Проброс заголовков
 
@@ -1053,21 +1118,35 @@ wiretap:
 
 | Метрика                              | Тип                          | Теги                                                                | Описание |
 |--------------------------------------|------------------------------|---------------------------------------------------------------------|----------|
-| `wiretap.http.overhead`              | Timer (секунды)              | `direction`, `client`, `outcome`, `status`                          | Полный overhead pipeline на один HTTP-запрос |
+| `wiretap.http.overhead`              | Timer (секунды)              | `direction`, `client`, `outcome`, `status`                          | Overhead логгера на один HTTP-запрос — время downstream-вызова исключено (см. примечание ниже) |
 | `wiretap.http.requests`              | Counter                      | `direction`, `client`, `outcome`, `status`                          | Идёт парой с Timer |
 | `wiretap.http.skipped`               | Counter                      | `direction`, `client`, `reason`                                     | Запросы, прошедшие мимо логирования |
 | `wiretap.http.body.size`             | DistributionSummary (bytes)  | `direction`, `client`, `content_type_class`, `kind` (`request`/`response`) | Размер захваченного тела |
-| `wiretap.http.body.capture.failures` | Counter                      | `direction`, `client`, `phase`                                      | Исключения внутри parse/mask/serialise/emit |
+| `wiretap.http.body.capture.failures` | Counter                      | `direction`, `client`, `phase`                                      | Исключения в пайплайне тела, пишутся единообразно во всех клиентах (входящий servlet + все исходящие): `phase=capture` (чтение/парсинг тела) или `phase=serialize` (рендеринг JSON в MDC) |
 | `wiretap.kafka.overhead`             | Timer                        | `direction` (`producer`/`consumer`), `outcome`                      | Полный overhead pipeline на одно Kafka-сообщение |
 | `wiretap.kafka.messages`             | Counter                      | `direction`, `outcome`                                              | Идёт парой с Timer |
 | `wiretap.kafka.skipped`              | Counter                      | `direction`, `reason`                                               | Причины skip (исключённый топик / null record) |
 | `wiretap.kafka.message.size`         | DistributionSummary (bytes)  | `direction`                                                         | Размер value |
+| `wiretap.kafka.body.capture.failures`| Counter                      | `direction`, `phase`                                                | Исключения в пайплайне тела Kafka — аналог `wiretap.http.body.capture.failures` (`phase=capture` маскирование/парсинг, `phase=serialize` рендеринг JSON) |
+
+> **`wiretap.http.overhead` меряет стоимость логирования, а не latency запроса.**
+> Для исходящих клиентов время downstream-вызова меряется в **наносекундах** и
+> вычитается, поэтому таймер отражает только работу самого wiretap (захват,
+> парсинг, маскирование, сериализация) без округления до миллисекунд. Вычитаемый
+> downstream — это сетевой вызов для RestTemplate/RestClient/Feign, время до
+> получения ответа (заголовки, а для буферизуемых ответов — и тело) для WebClient
+> и SOAP round-trip для WebServiceTemplate. Для входящих (servlet) downstream
+> вычитать не из чего, поэтому таймер покрывает весь JSON-рендеринг access-лога в
+> `LazyJsonAccessEncoder.encode()` (все провайдеры, включая `http_info`). Поле лога
+> `duration`/`elapsedTime` остаётся в миллисекундах (видимая пользователю latency) и
+> не зависит от наносекундного таймера overhead. Для пофазной атрибуции включите
+> phase-таймеры (`wiretap.metrics.detailed-timings`) ниже.
 
 Под флагом `wiretap.metrics.detailed-timings=true`:
 
 | Метрика                          | Теги                                                  | Описание |
 |----------------------------------|-------------------------------------------------------|----------|
-| `wiretap.body.phase`             | `phase`, `direction`, `client`, `content_type_class`  | Timer на одну фазу обработки тела. HTTP body эмитит `parse` / `mask` / `truncate` из `DefaultBodyParser`. Kafka body эмитит те же три фазы из `KafkaLogSink.renderValue` с тегами `client=kafka` и `direction=producer`/`consumer`. |
+| `wiretap.body.phase`             | `phase`, `direction`, `client`, `content_type_class`  | Timer на одну фазу обработки тела. HTTP body эмитит `parse` / `mask` / `truncate` из `DefaultBodyParser` с реальными тегами `direction` (`incoming`/`outgoing`) и `client` (`servlet`/`webclient`/…). Kafka body эмитит те же три фазы из `KafkaLogSink.renderValue` с тегами `client=kafka` и `direction=producer`/`consumer`. |
 | `wiretap.json.serialization`     | `sink`, `direction`, `client`                         | Время `ObjectMapper.writeValueAsString` |
 | `wiretap.body.masker.invocation` | `masker_class`, `direction`                           | Время одного вызова `HttpBodyMaskingHandler` для HTTP-стороны или `KafkaValueMaskingHandler` для Kafka-стороны (`masker_class` = FQN хэндлера). |
 
@@ -1087,7 +1166,7 @@ wiretap:
 - `outcome`: `success` / `client_error` (4xx) / `server_error` (5xx) / `exception` (HTTP); `success` / `error` (Kafka).
 - `status`: `2xx` / `3xx` / `4xx` / `5xx` / `other` / `exception` — никогда не сырое значение кода.
 - `content_type_class`: `json` / `xml` / `text` / `binary` / `other`.
-- `phase`: `capture` / `parse` / `mask` / `truncate` / `serialize` / `emit`.
+- `phase`: на `wiretap.body.phase` — `parse` / `mask` / `truncate`; на `wiretap.{http,kafka}.body.capture.failures` — `capture` (чтение/парсинг тела) / `serialize` (рендеринг JSON в MDC).
 - `reason`: `exclude_pattern` / `exclude_topic` / `streaming` / `unsupported_content_type` / `visibility_disabled` / `null_topic` / `null_record`.
 
 ### Сбор метрик
