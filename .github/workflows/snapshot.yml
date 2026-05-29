@@ -1,0 +1,47 @@
+name: publish-snapshot
+
+# Publishes X.Y.Z-SNAPSHOT artifacts to the Sonatype Central Portal snapshot
+# repository (https://central.sonatype.com/repository/maven-snapshots/) on every
+# push to main. The publish step is skipped unless the root version is a
+# -SNAPSHOT, so this is a no-op while main carries a release version.
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  snapshot:
+    name: Publish snapshot to Maven Central
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Detect snapshot version
+        id: version
+        run: |
+          if grep -qE '^version = ".*-SNAPSHOT"' build.gradle.kts; then
+            echo "snapshot=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "snapshot=false" >> "$GITHUB_OUTPUT"
+            echo "Root version is not a -SNAPSHOT — skipping snapshot publish."
+          fi
+      - name: Run tests
+        if: steps.version.outputs.snapshot == 'true'
+        run: ./gradlew test --console=plain
+      - name: Publish snapshot to Sonatype Central
+        if: steps.version.outputs.snapshot == 'true'
+        run: ./gradlew publishToMavenCentral --no-configuration-cache --console=plain
+        env:
+          # Same Central Portal user token + signing key as the release workflow.
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}

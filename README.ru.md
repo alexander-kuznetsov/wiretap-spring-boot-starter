@@ -81,7 +81,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.1-SNAPSHOT'
+    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0-SNAPSHOT'
 }
 ```
 

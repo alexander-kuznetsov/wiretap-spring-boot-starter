@@ -27,7 +27,7 @@ plugins {
     `maven-publish`
     signing
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.vanniktech.maven.publish") version "0.30.0"
+    id("com.vanniktech.maven.publish") version "0.32.0"
 }
 
 group = rootProject.group
