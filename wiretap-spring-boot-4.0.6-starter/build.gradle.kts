@@ -1,6 +1,7 @@
 import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.SonatypeHost
+import java.util.concurrent.Callable
 
 // Wiretap built and tested against Spring Boot 4.0.6. Spring Boot 4 keeps
 // Logback on the 1.5.x line (logback-classic 1.5.32) but pulls a new major
@@ -372,4 +373,13 @@ mavenPublishing {
             url.set("https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/issues")
         }
     }
+}
+
+// signAllPublications() above makes signing mandatory for every publish task,
+// including publishToMavenLocal — which fails with "no configured signatory" on a
+// machine without the release PGP key (e.g. a local smoke build). Require signing
+// only when actually publishing to Maven Central; the CI release task graph
+// (publish*ToMavenCentral*) still signs, local installs skip it gracefully.
+signing {
+    setRequired(Callable { gradle.taskGraph.allTasks.any { it.name.contains("ToMavenCentral") } })
 }
