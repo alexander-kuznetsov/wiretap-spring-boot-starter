@@ -168,6 +168,18 @@ wiretap:
       thread-name: thread
 ```
 
+### Silencing a noisy logger
+
+Wiretap rides on Spring Boot + Logback, so quiet (or mute) any logger with the
+standard `logging.level.*` — no wiretap-specific config. For example, to silence
+the chatty `brave.Tracer` span dumps:
+
+```yaml
+logging:
+  level:
+    brave.Tracer: OFF          # mute entirely; or WARN / ERROR to just raise the threshold
+```
+
 ## Extra structured fields
 
 The `extra` field in every app-log entry is populated from the MDC key `LOG_EXTRA`.

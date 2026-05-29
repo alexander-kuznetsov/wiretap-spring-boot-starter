@@ -44,13 +44,6 @@
                         <provider class="io.wiretap.applog.provider.WiretapDelegatingLogFieldProvider"/>
                     </providers>
                 </encoder>
-                <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
-                    <evaluator>
-                        <expression>logger.equals("brave.Tracer")</expression>
-                    </evaluator>
-                    <OnMismatch>NEUTRAL</OnMismatch>
-                    <OnMatch>DENY</OnMatch>
-                </filter>
             </appender>
         </else>
     </if>

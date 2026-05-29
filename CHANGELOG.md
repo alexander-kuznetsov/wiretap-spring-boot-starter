@@ -101,6 +101,12 @@ breaking-change rules.
   they implement (structural → `HttpBodyMaskingHandler`, per-field →
   `HttpBodyFieldMaskingHandler`); the two still compose — structural runs
   first, then per-field.
+- Wiretap no longer auto-suppresses the `brave.Tracer` logger. Earlier versions
+  shipped a hardcoded Logback `EvaluatorFilter` that dropped its span-dump lines;
+  it was an environment-specific default (and unreliable on the Jackson 3 /
+  Logback 1.5 starter, where the Janino evaluator fails open), so it has been
+  removed. Quiet any noisy logger the standard Spring Boot way instead —
+  `logging.level.brave.Tracer: OFF`.
 
 ### Removed
 - `io.wiretap.configuration.LoggerConfiguration`,
