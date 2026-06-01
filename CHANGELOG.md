@@ -70,6 +70,13 @@ breaking-change rules.
   Pick the coordinate that matches your Spring Boot version.
 
 ### Changed
+- Inbound request/response body capture is now on by default. Wiretap
+  contributes `logback.access.tee-filter.enabled=true` as an overridable
+  default, so logback-access's `TeeFilter` runs and `request_body` /
+  `response_body` are populated without extra configuration. The filter buffers
+  each body in memory before the access encoder runs — set
+  `logback.access.tee-filter.enabled=false` to opt out. Outbound bodies
+  (client interceptors) are unaffected.
 - Under `wiretap.pretty-print=true` the `stack_trace` field is now
   rendered as a JSON array of strings (one element per line) instead
   of a single embedded string. The change makes long stack traces

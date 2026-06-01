@@ -563,6 +563,18 @@ wiretap:
       - "/health"
 ```
 
+### Capturing inbound bodies
+
+Inbound `request_body` / `response_body` capture rides on logback-access's
+`TeeFilter`, which the logback-access starter ships **disabled**. Wiretap turns
+it on by default — it contributes `logback.access.tee-filter.enabled=true` as an
+overridable default — so inbound bodies are logged out of the box.
+
+The `TeeFilter` buffers each request/response body in memory before the access
+encoder runs. To opt out (e.g. high-throughput services with large payloads),
+set `logback.access.tee-filter.enabled=false`. Outbound bodies are captured by
+the client interceptors and do not depend on this filter.
+
 ### Buffering body across filter boundaries
 
 Logback-access's standard `TeeFilter` captures bodies only when the
