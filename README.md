@@ -9,7 +9,7 @@
 [![compatibility](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml)
 [![release](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml)
 
-**Status:** Pre-release — only `1.0.0-SNAPSHOT` is published right now (public Central Portal snapshots) and is being tested on live projects ahead of the stable `1.0.0` release. The public API (configuration properties, SPI interfaces, artifact coordinates) is essentially final and follows [semantic versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0 on.
+**Status:** `1.0.0` is the first public release — available on Maven Central. It's early days: the feature set is in place, but expect rough edges, and please report what breaks on real projects (that's what open source is for). The public API (configuration properties, SPI interfaces, artifact coordinates) follows [semantic versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0 on.
 
 > **Try it live.** [`logger-demo`](https://github.com/alexander-kuznetsov/logger-demo) is a
 > runnable Spring Boot sandbox that wires Wiretap into a real app — inbound/outbound HTTP,
@@ -67,25 +67,17 @@ ID propagation, and built-in masking of sensitive data.
 
 ## Quick start
 
-> **Pre-release.** Only `1.0.0-SNAPSHOT` is published right now — to the public
-> Central Portal snapshots repo — and it is being battle-tested on live projects.
-> The stable `1.0.0` release will follow.
-
 ```gradle
 repositories {
     mavenCentral()
-    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
 
 dependencies {
     // Pick the coordinate matching your Spring Boot version
     // (see the "Versioning and compatibility" section below).
-    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0-SNAPSHOT'
+    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0'
 }
 ```
-
-Once `1.0.0` is released you can drop the snapshots repository and depend on
-`:1.0.0` from `mavenCentral()` — that's the only change.
 
 That's it — no other configuration is required. Wiretap auto-configures itself via Spring Boot's
 auto-configuration mechanism. Logs are emitted to stdout in JSON format. Inbound HTTP

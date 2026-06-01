@@ -101,9 +101,9 @@ compatibility matrix.
 
 - **0.1.x** — pre-release. Four per-SB-version artifacts covering
   Boot 3.2.x, 3.4.x, 3.5.x and 4.0.x.
-- **1.0.0** — first stable release (upcoming). Same coverage. Currently published
-  as `1.0.0-SNAPSHOT` for real-world testing; will be released via the
-  `release-to-central` workflow.
+- **1.0.0** — first public release. Same coverage. Released to Maven Central; the
+  public API follows semver from 1.0.0 on. An early release — expect rough edges,
+  and please report what breaks on real projects.
 
 ## Updating the matrix
 
@@ -204,5 +204,6 @@ CI запускает тот же скрипт-аналог в каждой яч
 
 - **0.1.x** — pre-release. Четыре per-SB-version артефакта,
   покрывающие Boot 3.2.x, 3.4.x, 3.5.x и 4.0.x.
-- **1.0.0** — первый стабильный релиз (предстоит). Тот же охват. Пока публикуется
-  как `1.0.0-SNAPSHOT` для обкатки; будет выпущен через workflow `release-to-central`.
+- **1.0.0** — первый публичный релиз. Тот же охват. Опубликован в Maven Central;
+  публичный API следует semver начиная с 1.0.0. Ранняя версия — возможны
+  шероховатости, сообщайте, что ломается на реальных проектах.

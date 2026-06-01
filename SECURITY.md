@@ -28,8 +28,7 @@ Only the **latest minor release line** receives security patches:
 | 1.x     | :white_check_mark: |
 | < 1.0   | :x:                |
 
-There is no stable release yet — fixes currently land in `1.0.0-SNAPSHOT` and
-will ship in `1.0.0`.
+Security fixes land on the latest `1.x` release line.
 
 Compatibility across Spring Boot / Java is documented in
 [`COMPATIBILITY.md`](./COMPATIBILITY.md).

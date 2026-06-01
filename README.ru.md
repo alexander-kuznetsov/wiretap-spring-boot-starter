@@ -7,7 +7,7 @@ RU | [EN](README.md)
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**Статус:** Pre-release — сейчас опубликован только `1.0.0-SNAPSHOT` (публичный Central Portal snapshots), он проходит обкатку на реальных проектах перед стабильным релизом `1.0.0`. Публичный API (конфигурационные свойства, SPI-интерфейсы, координаты артефактов) практически финальный и следует [семантическому версионированию](https://semver.org/lang/ru/) начиная с 1.0.0.
+**Статус:** `1.0.0` — первый публичный релиз, доступен на Maven Central. Это ранняя версия: функциональность на месте, но возможны шероховатости — пожалуйста, сообщайте, что ломается на реальных проектах (за тем и open source). Публичный API (конфигурационные свойства, SPI-интерфейсы, координаты артефактов) следует [семантическому версионированию](https://semver.org/lang/ru/) начиная с 1.0.0.
 
 > **Попробуйте вживую.** [`logger-demo`](https://github.com/alexander-kuznetsov/logger-demo) —
 > готовое к запуску Spring Boot приложение, которое подключает Wiretap в реальный сервис:
@@ -65,25 +65,17 @@ correlation ID и встроенным маскированием чувстви
 
 ## Быстрый старт
 
-> **Pre-release.** Сейчас опубликован только `1.0.0-SNAPSHOT` — в публичном
-> Central Portal snapshots — и он проходит обкатку на реальных проектах.
-> Стабильный релиз `1.0.0` будет позже.
-
 ```gradle
 repositories {
     mavenCentral()
-    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
 
 dependencies {
     // Подбираем координату под версию вашего Spring Boot
     // (см. раздел «Версионирование и совместимость» ниже).
-    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0-SNAPSHOT'
+    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0'
 }
 ```
-
-Когда выйдет `1.0.0` — убираете snapshots-репозиторий и берёте `:1.0.0` из
-`mavenCentral()`, это единственное изменение.
 
 Никакой дополнительной конфигурации не требуется. Wiretap подключается автоматически через механизм
 Spring Boot auto-configuration. Логи пишутся в stdout в формате JSON. Входящий HTTP-трафик
