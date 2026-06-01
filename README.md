@@ -11,6 +11,11 @@
 
 **Status:** Pre-release — only `1.0.0-SNAPSHOT` is published right now (public Central Portal snapshots) and is being tested on live projects ahead of the stable `1.0.0` release. The public API (configuration properties, SPI interfaces, artifact coordinates) is essentially final and follows [semantic versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0 on.
 
+> **Try it live.** [`logger-demo`](https://github.com/alexander-kuznetsov/logger-demo) is a
+> runnable Spring Boot sandbox that wires Wiretap into a real app — inbound/outbound HTTP,
+> Kafka, masking, metrics, pretty-print — so you can see the JSON output before adding it to
+> your own service.
+
 ## What you get
 
 Add Wiretap to a Spring Boot application and every inbound and outbound HTTP call is
