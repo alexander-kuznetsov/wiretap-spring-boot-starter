@@ -15,6 +15,8 @@ import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.metrics.WiretapMetricsImpl;
 import io.wiretap.metrics.WiretapMetricsProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -109,6 +111,33 @@ assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
                 });
     }
 
+    /**
+     * Regression guard for the auto-configuration ordering bug: when the
+     * {@code MeterRegistry} is contributed by an auto-configuration that runs
+     * AFTER wiretap (which sits at {@code HIGHEST_PRECEDENCE}), the metrics
+     * binding must still resolve to {@link WiretapMetricsImpl}. The earlier
+     * {@code @ConditionalOnBean(MeterRegistry.class)} evaluated too early and
+     * silently fell back to {@link NoOpWiretapMetrics}, so wiretap metrics never
+     * appeared in a normal Micrometer/Actuator application. Unlike
+     * {@link #wiretapMetricsBean_isImplWhenMeterRegistryPresent()}, the registry
+     * here comes from an auto-configuration (not a user bean), which is what
+     * reproduces the ordering.
+     */
+    @Test
+    void wiretapMetricsBean_isImplWhenRegistryComesFromLaterAutoConfiguration() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        JacksonAutoConfiguration.class, WiretapAutoConfiguration.class,
+                        WebClientInterceptorConfiguration.class,
+                        LateMeterRegistryAutoConfiguration.class))
+                .withUserConfiguration(StubTracerConfig.class)
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    assertThat(ctx).hasSingleBean(WiretapMetrics.class);
+                    assertThat(ctx.getBean(WiretapMetrics.class)).isInstanceOf(WiretapMetricsImpl.class);
+                });
+    }
+
     @Test
     void wiretapMetricsBean_isNoOpWhenDisabledViaProperty() {
         runner
@@ -155,6 +184,20 @@ assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
     static class StubMeterRegistryConfig {
         @Bean
         MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
+        }
+    }
+
+    /**
+     * A {@code MeterRegistry} contributed by an auto-configuration ordered AFTER
+     * wiretap's {@code HIGHEST_PRECEDENCE} configuration — mirroring how
+     * Micrometer's real Prometheus/Simple registry appears in an application.
+     */
+    @AutoConfiguration
+    @AutoConfigureAfter(WiretapAutoConfiguration.class)
+    static class LateMeterRegistryAutoConfiguration {
+        @Bean
+        MeterRegistry lateMeterRegistry() {
             return new SimpleMeterRegistry();
         }
     }

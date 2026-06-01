@@ -2,10 +2,11 @@ package io.wiretap.configuration;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.wiretap.metrics.AsyncAppenderMetricsBinder;
+import io.wiretap.metrics.NoOpWiretapMetrics;
 import io.wiretap.metrics.WiretapMetrics;
 import io.wiretap.metrics.WiretapMetricsImpl;
 import io.wiretap.metrics.WiretapMetricsProperties;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,24 +16,33 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Wires the active {@link WiretapMetrics} implementation when Micrometer is on
- * the classpath, the application provides a {@code MeterRegistry} bean, and
- * the master switch {@code wiretap.metrics.enabled} is not turned off
- * (default: on).
+ * the classpath and the master switch {@code wiretap.metrics.enabled} is not
+ * turned off (default: on).
  *
- * <p>When any of these conditions are not met, {@code WiretapAutoConfiguration}
- * installs a no-op {@code WiretapMetrics} bean instead, so interceptors never
- * have to deal with a missing dependency.
+ * <p>The {@code MeterRegistry} is resolved lazily through an
+ * {@link ObjectProvider}, so it does not have to exist when this configuration
+ * is evaluated. That keeps the wiring immune to auto-configuration ordering:
+ * this class is imported by {@code WiretapAutoConfiguration}, which runs at
+ * {@code HIGHEST_PRECEDENCE} — long before Micrometer's registry
+ * auto-configuration — so a plain {@code @ConditionalOnBean(MeterRegistry.class)}
+ * would evaluate before the registry exists and silently fall back to no-op.
+ *
+ * <p>When no registry is available the binding itself falls back to
+ * {@link NoOpWiretapMetrics}; the same no-op is installed by
+ * {@code WiretapAutoConfiguration} when Micrometer is absent from the classpath
+ * entirely, so interceptors never face a missing dependency.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(MeterRegistry.class)
-@ConditionalOnBean(MeterRegistry.class)
 @ConditionalOnProperty(prefix = "wiretap.metrics", name = "enabled", matchIfMissing = true)
 @EnableConfigurationProperties(WiretapMetricsProperties.class)
 public class WiretapMetricsConfiguration {
 
     @Bean
-    public WiretapMetrics wiretapMetrics(MeterRegistry registry, WiretapMetricsProperties props) {
-        return new WiretapMetricsImpl(registry, props);
+    public WiretapMetrics wiretapMetrics(ObjectProvider<MeterRegistry> meterRegistry,
+                                         WiretapMetricsProperties props) {
+        MeterRegistry registry = meterRegistry.getIfAvailable();
+        return registry != null ? new WiretapMetricsImpl(registry, props) : new NoOpWiretapMetrics();
     }
 
     /**
@@ -43,7 +53,9 @@ public class WiretapMetricsConfiguration {
      */
     @Bean
     @ConditionalOnExpression("${wiretap.async-logging.enabled:false} and ${wiretap.metrics.async-appender.enabled:true}")
-    public AsyncAppenderMetricsBinder wiretapAsyncAppenderMetricsBinder(MeterRegistry registry) {
-        return new AsyncAppenderMetricsBinder(registry);
+    public AsyncAppenderMetricsBinder wiretapAsyncAppenderMetricsBinder(ObjectProvider<MeterRegistry> meterRegistry) {
+        MeterRegistry registry = meterRegistry.getIfAvailable();
+        // No registry on the classpath/context → nothing to bind the queue gauges to.
+        return registry != null ? new AsyncAppenderMetricsBinder(registry) : null;
     }
 }
