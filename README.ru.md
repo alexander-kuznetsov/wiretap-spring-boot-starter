@@ -6,6 +6,9 @@ RU | [EN](README.md)
 > через servlet, RestTemplate, RestClient, FeignClient, WebClient и WebServiceTemplate.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter)
+[![compatibility](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml)
+[![release](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml)
 
 **Статус:** `1.0.0` — первый публичный релиз, доступен на Maven Central. Это ранняя версия: функциональность на месте, но возможны шероховатости — пожалуйста, сообщайте, что ломается на реальных проектах (за тем и open source). Публичный API (конфигурационные свойства, SPI-интерфейсы, координаты артефактов) следует [семантическому версионированию](https://semver.org/lang/ru/) начиная с 1.0.0.
 
@@ -65,14 +68,23 @@ correlation ID и встроенным маскированием чувстви
 
 ## Быстрый старт
 
+Выберите координату под свою версию Spring Boot — patch в имени артефакта это
+ровно та версия, против которой starter собран и протестирован:
+
+| Ваш Spring Boot | Maven-координата |
+|---|---|
+| `3.2.7`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter:1.0.0` |
+| `3.4.5`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter:1.0.0` |
+| `3.5.14` | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0` |
+| `4.0.6`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-4.0.6-starter:1.0.0` |
+
 ```gradle
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    // Подбираем координату под версию вашего Spring Boot
-    // (см. раздел «Версионирование и совместимость» ниже).
+    // координата под вашу версию Spring Boot — см. таблицу выше
     implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0'
 }
 ```

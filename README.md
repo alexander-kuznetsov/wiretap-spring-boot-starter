@@ -6,6 +6,7 @@
 > capture across servlet, RestTemplate, RestClient, FeignClient, WebClient, and WebServiceTemplate.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter)
 [![compatibility](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml)
 [![release](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml)
 
@@ -67,14 +68,23 @@ ID propagation, and built-in masking of sensitive data.
 
 ## Quick start
 
+Pick the coordinate that matches your Spring Boot version — the patch in the name
+is the exact version the starter was built and tested against:
+
+| Your Spring Boot | Maven coordinate |
+|---|---|
+| `3.2.7`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter:1.0.0` |
+| `3.4.5`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter:1.0.0` |
+| `3.5.14` | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0` |
+| `4.0.6`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-4.0.6-starter:1.0.0` |
+
 ```gradle
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    // Pick the coordinate matching your Spring Boot version
-    // (see the "Versioning and compatibility" section below).
+    // coordinate for your Spring Boot version — see the table above
     implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0'
 }
 ```
