@@ -6,11 +6,10 @@
 > capture across servlet, RestTemplate, RestClient, FeignClient, WebClient, and WebServiceTemplate.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.alexander-kuznetsov/wiretap-spring-boot-3.5.14-starter)
 [![compatibility](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/compatibility.yml)
 [![release](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml/badge.svg)](https://github.com/alexander-kuznetsov/wiretap-spring-boot-starter/actions/workflows/release.yml)
 
-**Status:** `1.0.0` — stable public release. Public API (configuration properties, SPI interfaces, artifact coordinates) follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
+**Status:** Pre-release — only `1.0.0-SNAPSHOT` is published right now (public Central Portal snapshots) and is being tested on live projects ahead of the stable `1.0.0` release. The public API (configuration properties, SPI interfaces, artifact coordinates) is essentially final and follows [semantic versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0 on.
 
 ## What you get
 
@@ -63,19 +62,9 @@ ID propagation, and built-in masking of sensitive data.
 
 ## Quick start
 
-```gradle
-dependencies {
-    // Pick the coordinate matching your Spring Boot version
-    // (see the "Versioning and compatibility" section below).
-    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0'
-}
-```
-
-The artifacts are published to **Maven Central**, so `mavenCentral()` —
-the default repository in most Spring Boot projects — is enough; no
-credentials, no extra setup.
-
-For snapshots between releases, add the public Central snapshots repo:
+> **Pre-release.** Only `1.0.0-SNAPSHOT` is published right now — to the public
+> Central Portal snapshots repo — and it is being battle-tested on live projects.
+> The stable `1.0.0` release will follow.
 
 ```gradle
 repositories {
@@ -84,9 +73,14 @@ repositories {
 }
 
 dependencies {
+    // Pick the coordinate matching your Spring Boot version
+    // (see the "Versioning and compatibility" section below).
     implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0-SNAPSHOT'
 }
 ```
+
+Once `1.0.0` is released you can drop the snapshots repository and depend on
+`:1.0.0` from `mavenCentral()` — that's the only change.
 
 That's it — no other configuration is required. Wiretap auto-configures itself via Spring Boot's
 auto-configuration mechanism. Logs are emitted to stdout in JSON format. Inbound HTTP

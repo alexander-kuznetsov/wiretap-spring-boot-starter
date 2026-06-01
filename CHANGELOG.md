@@ -8,9 +8,11 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 _No unreleased changes._
 
-## [1.0.0] - 2026-05-26
+## [1.0.0] - unreleased
 
-First stable public release. The public API — configuration properties
+First public release (upcoming). It is currently published as `1.0.0-SNAPSHOT`
+and undergoing real-world testing on live projects ahead of the stable `1.0.0`
+tag. The public API — configuration properties
 under `wiretap.*`, the SPI interfaces (`WiretapAccessFieldProvider`,
 `WiretapLogFieldProvider`, `HttpBodyMaskingHandler`, `HttpBodyFieldMaskingHandler`,
 `HttpUrlMaskingHandler`, `HttpRequestParamsMaskingHandler`,
