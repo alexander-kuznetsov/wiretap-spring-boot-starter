@@ -109,7 +109,7 @@ public class FeignClientWrapper implements Client {
         try {
             bufferedResponse = getBufferedResponse(request, options, requestHttpInfoOptional, requestStopWatch);
         } catch (IOException | RuntimeException e) {
-            metrics.recordHttpRequest(startNanos, 0L, DIRECTION, CLIENT, "exception", "exception");
+            metrics.recordHttpRequest(startNanos, requestStopWatch.getTotalTimeNanos(), DIRECTION, CLIENT, "exception", "exception");
             throw e;
         }
         requestStopWatch.stop();

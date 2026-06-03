@@ -6,7 +6,16 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Fixed
+- `wiretap.http.overhead` no longer over-reports on failed outgoing calls.
+  When a `WebClient`, `RestTemplate`, `RestClient`, or Feign request failed
+  (timeout, connection reset, read timeout), the downstream wait was recorded
+  as `0`, so the whole time spent waiting on the remote system was attributed
+  to wiretap overhead — a 5-second timeout looked like 5 seconds of logging
+  overhead on the `outcome="exception"` series. The interceptors now subtract
+  the real downstream duration on the exception path, matching the success
+  path. Incoming/servlet behaviour is unchanged (it has no downstream call to
+  subtract).
 
 ## [1.0.0] - 2026-06-01
 

@@ -129,7 +129,7 @@ class RestLoggingInterceptor implements ClientHttpRequestInterceptor {
                     requestStopWatch
             );
         } catch (IOException e) {
-            metrics.recordHttpRequest(startNanos, 0L, DIRECTION, clientTag, "exception", "exception");
+            metrics.recordHttpRequest(startNanos, requestStopWatch.getTotalTimeNanos(), DIRECTION, clientTag, "exception", "exception");
             throw e;
         }
         requestStopWatch.stop();

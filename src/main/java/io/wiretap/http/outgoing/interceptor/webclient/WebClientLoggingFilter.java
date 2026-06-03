@@ -158,8 +158,12 @@ public class WebClientLoggingFilter implements ExchangeFilterFunction {
                         request, response, capturedRequestBody, startTime, startNanos,
                         captureResponseBody, maxBodyLength))
                 .onErrorResume(ex -> {
+                    // The downstream call failed; everything up to here is the
+                    // downstream wait, so subtract it (mirrors the success path)
+                    // and leave only the partial-log work below as wiretap overhead.
+                    long downstreamNanos = metrics.startSample() - startNanos;
                     logPartialRequest(request, capturedRequestBody.get(), startTime);
-                    metrics.recordHttpRequest(startNanos, 0L, DIRECTION, CLIENT, "exception", "exception");
+                    metrics.recordHttpRequest(startNanos, downstreamNanos, DIRECTION, CLIENT, "exception", "exception");
                     metrics.recordHttpBodyCaptureFailure(DIRECTION, CLIENT, "capture");
                     return Mono.error(ex);
                 });
