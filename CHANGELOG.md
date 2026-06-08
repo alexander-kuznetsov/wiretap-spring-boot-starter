@@ -7,6 +7,16 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 ## [Unreleased]
 
 ### Fixed
+- Correlation headers (`wiretap.headers.forward-to-mdc`) are now forwarded into
+  MDC before any servlet filter runs, and MDC is reliably cleared after each
+  request. Previously the forwarding happened in a Spring MVC `HandlerInterceptor`,
+  which runs inside the `DispatcherServlet` — after the whole servlet filter chain
+  (including Spring Security and logging filters), so those filters never saw the
+  correlation values. The companion MDC-clearing filter was annotated only with
+  `@WebFilter` and was never registered (no `@ServletComponentScan`), so MDC was
+  never cleared and forwarded values leaked across pooled request threads. Both
+  are replaced by a single high-precedence servlet filter that populates MDC up
+  front and clears it in a `finally` block.
 - `wiretap.http.overhead` no longer over-reports on failed outgoing calls.
   When a `WebClient`, `RestTemplate`, `RestClient`, or Feign request failed
   (timeout, connection reset, read timeout), the downstream wait was recorded

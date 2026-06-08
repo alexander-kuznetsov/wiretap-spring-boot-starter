@@ -26,7 +26,7 @@ public class WiretapHeadersProperties {
 
     /**
      * Names of inbound request headers that should be copied into MDC under the same key.
-     * Used by {@link io.wiretap.http.incoming.interceptor.CorrelationHeadersMdcForwarder}.
+     * Used by {@link io.wiretap.http.incoming.filter.CorrelationHeadersMdcFilter}.
      */
     private List<String> forwardToMdc = List.of("x-request-id", "x-session-key", "lb-trace-id");
 }

@@ -1,5 +1,6 @@
 package io.wiretap.configuration;
 
+import io.wiretap.http.incoming.filter.CorrelationHeadersMdcFilter;
 import io.wiretap.http.incoming.provider.httpinfo.HttpInfoMessageProvider;
 import io.wiretap.http.incoming.provider.message.MessageProvider;
 import io.wiretap.http.message.settings.HttpAccessFieldNames;
@@ -20,8 +21,10 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -51,6 +54,23 @@ assertThat(ctx).hasSingleBean(RestTemplateLoggingInterceptor.class);
             assertThat(ctx).hasSingleBean(FeignClientWrapper.class);
             assertThat(ctx).hasSingleBean(WebClientLoggingFilter.class);
             assertThat(ctx).hasSingleBean(WiretapAsyncLoggingProperties.class);
+        });
+    }
+
+    @Test
+    void correlationHeadersMdcFilterRegisteredAheadOfSecurity() {
+        runner.run(ctx -> {
+            assertThat(ctx).hasNotFailed();
+
+            FilterRegistrationBean<?> registration = ctx.getBeansOfType(FilterRegistrationBean.class).values().stream()
+                    .filter(bean -> bean.getFilter() instanceof CorrelationHeadersMdcFilter)
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError(
+                            "CorrelationHeadersMdcFilter must be registered as a servlet filter"));
+
+            // HIGHEST_PRECEDENCE is ahead of Spring Security's default chain order (-100),
+            // so the correlation MDC is populated before any other filter runs.
+            assertThat(registration.getOrder()).isEqualTo(Ordered.HIGHEST_PRECEDENCE);
         });
     }
 
