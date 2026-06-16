@@ -6,6 +6,10 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
+_No unreleased changes._
+
+## [1.0.1] - 2026-06-16
+
 ### Fixed
 - Multipart and binary request bodies are no longer buffered by the logback-access
   tee filter, which fixes broken file uploads. The stock `TeeFilter` eagerly reads

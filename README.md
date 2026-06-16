@@ -73,10 +73,10 @@ is the exact version the starter was built and tested against:
 
 | Your Spring Boot | Maven coordinate |
 |---|---|
-| `3.2.7`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter:1.0.0` |
-| `3.4.5`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter:1.0.0` |
-| `3.5.14` | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0` |
-| `4.0.6`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-4.0.6-starter:1.0.0` |
+| `3.2.7`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.2.7-starter:1.0.1` |
+| `3.4.5`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.4.5-starter:1.0.1` |
+| `3.5.14` | `io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.1` |
+| `4.0.6`  | `io.github.alexander-kuznetsov:wiretap-spring-boot-4.0.6-starter:1.0.1` |
 
 ```gradle
 repositories {
@@ -85,7 +85,7 @@ repositories {
 
 dependencies {
     // coordinate for your Spring Boot version — see the table above
-    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.0'
+    implementation 'io.github.alexander-kuznetsov:wiretap-spring-boot-3.5.14-starter:1.0.1'
 }
 ```
 
