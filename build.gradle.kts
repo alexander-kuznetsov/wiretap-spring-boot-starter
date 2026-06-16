@@ -14,4 +14,4 @@
 // `publishAndReleaseToMavenCentral` aggregator task.
 
 group = "io.github.alexander-kuznetsov"
-version = "1.0.1"
+version = "1.0.2-SNAPSHOT"
