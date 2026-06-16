@@ -123,6 +123,9 @@ val rewriteMainSources = tasks.register<Copy>("rewriteMainSources") {
         line.replace(
             "ch.qos.logback.access.spi.IAccessEvent",
             "ch.qos.logback.access.common.spi.IAccessEvent"
+        ).replace(
+            "ch.qos.logback.access.servlet.TeeFilter",
+            "ch.qos.logback.access.common.servlet.TeeFilter"
         )
     }
 }
@@ -134,6 +137,9 @@ val rewriteTestSources = tasks.register<Copy>("rewriteTestSources") {
         line.replace(
             "ch.qos.logback.access.spi.IAccessEvent",
             "ch.qos.logback.access.common.spi.IAccessEvent"
+        ).replace(
+            "ch.qos.logback.access.servlet.TeeFilter",
+            "ch.qos.logback.access.common.servlet.TeeFilter"
         )
     }
 }

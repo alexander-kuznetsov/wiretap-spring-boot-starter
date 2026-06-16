@@ -145,6 +145,14 @@ public final class HttpBodyUtils {
                         contentType.toString().contains(MediaType.APPLICATION_XML_VALUE));
     }
 
+    /**
+     * Whether a body of this content type is worth <em>parsing</em> into the log.
+     * Guards the parse layer for any captured body string — inbound request and
+     * response bodies as well as the outgoing-client buffered paths. This is a
+     * different concern from {@link #shouldBypassTeeBuffering}, which decides
+     * whether the inbound request stream is buffered at all; do not merge them
+     * (this one must keep rejecting e.g. binary response bodies and form-urlencoded).
+     */
     public static boolean isSupportedContentType(final MediaType contentType) {
         if (contentType == null) {
             return true;
@@ -170,5 +178,37 @@ public final class HttpBodyUtils {
             }
         }
         return isSupported;
+    }
+
+    /**
+     * Whether logback-access teeing (inbound request-body buffering) must be skipped
+     * for this request content type. Buffering a {@code multipart/*} stream drains it
+     * so {@code request.getParts()} / {@code @RequestPart} see nothing and uploads
+     * break; buffering large binary / streaming uploads is also pointless. Note this
+     * is a narrower, buffering-time concern than {@link #isSupportedContentType}:
+     * {@code application/x-www-form-urlencoded} is intentionally NOT bypassed here —
+     * logback-access already avoids draining its parameters, and its response stays
+     * loggable.
+     */
+    public static boolean shouldBypassTeeBuffering(final MediaType contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        final String type = contentType.getType();
+        if ("multipart".equalsIgnoreCase(type) || "image".equalsIgnoreCase(type)) {
+            return true;
+        }
+        final List<MediaType> bypassTypes = Arrays.asList(
+                MediaType.APPLICATION_OCTET_STREAM,
+                MediaType.APPLICATION_PDF,
+                MediaType.TEXT_EVENT_STREAM,
+                new MediaType("binary", "octet-stream")
+        );
+        for (MediaType bypassType : bypassTypes) {
+            if (bypassType.includes(contentType)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -7,6 +7,17 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 ## [Unreleased]
 
 ### Fixed
+- Multipart and binary request bodies are no longer buffered by the logback-access
+  tee filter, which fixes broken file uploads. The stock `TeeFilter` eagerly reads
+  the whole request stream into a buffer for every non-`form-urlencoded` request;
+  for `multipart/form-data` that drained the stream before the controller could read
+  `request.getParts()` / `@RequestPart`, so uploads failed (empty parts, HTTP 400).
+  Wiretap now registers a content-type-aware tee filter that skips teeing for all
+  `multipart/*` and binary / streaming types (octet-stream, pdf, images,
+  event-stream), leaving the stream intact; `form-urlencoded`, JSON and other
+  parseable bodies are teed and logged exactly as before. Response bodies for the
+  skipped request types are no longer captured (their access logs keep method, URL,
+  status, headers and timing).
 - Correlation headers (`wiretap.headers.forward-to-mdc`) are now forwarded into
   MDC before any servlet filter runs, and MDC is reliably cleared after each
   request. Previously the forwarding happened in a Spring MVC `HandlerInterceptor`,

@@ -1,3 +1,4 @@
 io.wiretap.configuration.WiretapAutoConfiguration
 io.wiretap.configuration.WebClientInterceptorConfiguration
 io.wiretap.configuration.HttpAccessEventEncoderConfiguration
+io.wiretap.configuration.WiretapTeeFilterConfiguration

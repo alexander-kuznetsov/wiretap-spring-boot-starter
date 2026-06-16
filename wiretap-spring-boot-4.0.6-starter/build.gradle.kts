@@ -211,6 +211,10 @@ fun rewriteForSpringBoot4(line: String): String =
             "ch.qos.logback.access.common.spi.IAccessEvent"
         )
         .replace(
+            "ch.qos.logback.access.servlet.TeeFilter",
+            "ch.qos.logback.access.common.servlet.TeeFilter"
+        )
+        .replace(
             "org.springframework.boot.web.client.RestTemplateCustomizer",
             "org.springframework.boot.restclient.RestTemplateCustomizer"
         )
