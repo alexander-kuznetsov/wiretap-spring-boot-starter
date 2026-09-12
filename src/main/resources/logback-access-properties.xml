@@ -8,8 +8,8 @@
     <springProperty scope="context" name="ACTIVE_PROFILE" source="spring.profiles.active"/>
     <!-- always a good activate OnConsoleStatusListener -->
     <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener"/>
-    <springProperty scope="context" name="isLoggingFile" source="wiretap.file-logging-enabled" defaultValue="false"/>
-    <springProperty scope="context" name="loggingPath" source="wiretap.file-logging-path" defaultValue="/var/log/wiretap"/>
+    <springProperty scope="context" name="isLoggingFile" source="wiretap.file-logging.enabled" defaultValue="false"/>
+    <springProperty scope="context" name="loggingPath" source="wiretap.file-logging.path" defaultValue="/var/log/wiretap"/>
 
     <!-- Access log top-level field names (override via wiretap.access-log.fields.*) -->
     <springProperty scope="context" name="f_timestamp"   source="wiretap.access-log.fields.timestamp"    defaultValue="@timestamp"/>

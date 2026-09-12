@@ -105,6 +105,10 @@ wiretap:
     path: /var/log/myapp     # default: /var/log/wiretap
 ```
 
+The toggle covers both streams: `${path}/${spring.application.name}_json.log`
+for the application log and `${path}/${spring.application.name}_access_json.log`
+for the access log.
+
 ### Custom logback config
 
 Wiretap ships a default `logback-spring.xml` and `logback-access.xml`
@@ -124,6 +128,10 @@ encoders, `<include>` the fragments:
 The same applies to `logback-access.xml` and
 `logback-access-console-appender.xml`.
 
+To drop the JSON encoders altogether and fall back to Spring Boot's plain-text
+console pattern, set `wiretap.default-log=true` (default `false`). It also
+detaches Wiretap's access-log appenders, so no access log is written at all.
+
 ## Application log fields
 
 Standard fields emitted for every `log.info(...)` / `log.error(...)` call:
@@ -141,6 +149,7 @@ Standard fields emitted for every `log.info(...)` / `log.error(...)` call:
 | `wiretap.app-log.fields.logger-name` | `logger` | Logger name (no stack trace) |
 | `wiretap.app-log.fields.message` | `message` | Formatted message (masked) |
 | `wiretap.app-log.fields.http-info` | `http_info` | MDC `HTTP-REQUEST-LOG` as JSON |
+| `wiretap.app-log.fields.kafka-info` | `kafka_info` | MDC `KAFKA-MESSAGE-LOG` as JSON |
 | `wiretap.app-log.fields.extra` | `extra` | MDC `LOG_EXTRA` as JSON |
 | `wiretap.app-log.fields.caller-class` | `caller_class` | Caller class (off by default) |
 | `wiretap.app-log.fields.caller-method` | `caller_method` | Caller method (off by default) |
@@ -225,7 +234,7 @@ wiretap:
       http:
         return-code: status
         duration: elapsed_ms
-        request-url: path
+        url: path
         request-body: req
         response-body: resp
 ```
@@ -245,6 +254,7 @@ log records share the same shape.
 | `wiretap.access-log.fields.level` | `level` |
 | `wiretap.access-log.fields.message` | `message` |
 | `wiretap.access-log.fields.http-info` | `http_info` |
+| `wiretap.access-log.fields.kafka-info` | `kafka_info` |
 | `wiretap.access-log.fields.http.return-code` | `return_code` |
 | `wiretap.access-log.fields.http.method` | `http_method` |
 | `wiretap.access-log.fields.http.direction` | `direction` |
@@ -260,6 +270,23 @@ log records share the same shape.
 | `wiretap.access-log.fields.http.response-body` | `response_body` |
 | `wiretap.access-log.fields.http.response-body-length` | `response_body_length` |
 | `wiretap.access-log.fields.http.xml-body-type` | `xml_body_type` |
+| `wiretap.access-log.fields.kafka.direction` | `direction` |
+| `wiretap.access-log.fields.kafka.topic` | `topic` |
+| `wiretap.access-log.fields.kafka.partition` | `partition` |
+| `wiretap.access-log.fields.kafka.offset` | `offset` |
+| `wiretap.access-log.fields.kafka.client-id` | `client_id` |
+| `wiretap.access-log.fields.kafka.group-id` | `group_id` |
+| `wiretap.access-log.fields.kafka.key` | `key` |
+| `wiretap.access-log.fields.kafka.key-length` | `key_length` |
+| `wiretap.access-log.fields.kafka.value` | `value` |
+| `wiretap.access-log.fields.kafka.value-length` | `value_length` |
+| `wiretap.access-log.fields.kafka.headers` | `headers` |
+| `wiretap.access-log.fields.kafka.timestamp` | `timestamp` |
+| `wiretap.access-log.fields.kafka.timestamp-type` | `timestamp_type` |
+| `wiretap.access-log.fields.kafka.duration` | `duration` |
+| `wiretap.access-log.fields.kafka.status` | `status` |
+| `wiretap.access-log.fields.kafka.error-class` | `error_class` |
+| `wiretap.access-log.fields.kafka.error-message` | `error_message` |
 
 ## Adding custom fields (SPI)
 
@@ -455,8 +482,9 @@ Available toggles: `REQUEST_URL`, `REQUEST_HEADERS`, `REQUEST_PARAMS`,
 Each HTTP source has a pair of explicit allow-lists — `request-headers` and
 `response-headers` — and Kafka has a single `headers` list. Only headers
 named in these lists make it into the log payload. Defaults are intentionally
-small (`Content-Type` and `X-Forwarded-For` for HTTP, `x-trace-id` and
-`x-request-id` for Kafka), because most production traffic carries
+small — `request-headers` holds `Content-Type` and `X-Forwarded-For`,
+`response-headers` holds `Content-Type` alone, and the Kafka `headers` list
+holds `x-trace-id` and `x-request-id` — because most production traffic carries
 sensitive material such as `Authorization` or `Cookie` that should not
 end up in logs by accident.
 
@@ -572,6 +600,10 @@ wiretap:
 ```
 
 ### Skipping URLs entirely
+
+`wiretap.rest-controllers.exclude-request-patterns` already defaults to
+`["/actuator/.*"]`. Your own list replaces that default rather than adding to
+it, so repeat the entry when actuator traffic should stay out of the log:
 
 ```yaml
 wiretap:
@@ -894,7 +926,7 @@ and point it at a set of topics from configuration:
 ```yaml
 wiretap:
   kafka-consumer-interceptor:
-    enable-record-filtering: false         # bean idle by default
+    enable-record-filtering: false         # off globally (the default is true)
     specific-topic-settings:
       - match-topic-pattern: "orders\\..*"
         enable-record-filtering: true      # ...and active only here

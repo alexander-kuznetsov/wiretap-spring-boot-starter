@@ -75,11 +75,12 @@ dependencyManagement {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    // Spring Boot 4 moved the {RestTemplate,RestClient,WebClient}Customizer
+    // Spring Boot 4 moved the {RestTemplate,RestClient,WebClient,WebServiceTemplate}Customizer
     // interfaces into dedicated modules; pull them in so the rewritten imports
     // resolve at compile time and at runtime when consumers configure clients.
     api("org.springframework.boot:spring-boot-restclient")
     api("org.springframework.boot:spring-boot-webclient")
+    api("org.springframework.boot:spring-boot-webservices")
     // SB 4 split JacksonAutoConfiguration out into spring-boot-jackson.
     api("org.springframework.boot:spring-boot-jackson")
 

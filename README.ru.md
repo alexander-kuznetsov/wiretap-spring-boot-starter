@@ -105,6 +105,10 @@ wiretap:
     path: /var/log/myapp     # по умолчанию: /var/log/wiretap
 ```
 
+Тумблер включает оба потока: `${path}/${spring.application.name}_json.log`
+для application-лога и `${path}/${spring.application.name}_access_json.log`
+для access-лога.
+
 ### Свой logback-конфиг
 
 Wiretap кладёт в jar дефолтные `logback-spring.xml` и `logback-access.xml`
@@ -124,6 +128,11 @@ encoder'ы, подключайте фрагменты явно:
 То же самое относится к `logback-access.xml` и
 `logback-access-console-appender.xml`.
 
+Чтобы совсем отказаться от JSON-encoder'ов и вернуться к текстовому
+консольному паттерну Spring Boot, поставьте `wiretap.default-log=true`
+(дефолт — `false`). Заодно это отключает access-log-аппендеры wiretap,
+то есть access-лог не пишется вообще.
+
 ## Поля лога приложения
 
 Стандартные поля, которые Wiretap добавляет к каждому `log.info(...)` / `log.error(...)`:
@@ -141,6 +150,7 @@ encoder'ы, подключайте фрагменты явно:
 | `wiretap.app-log.fields.logger-name` | `logger` | Имя логгера (без stack trace) |
 | `wiretap.app-log.fields.message` | `message` | Отформатированное сообщение (маскированное) |
 | `wiretap.app-log.fields.http-info` | `http_info` | MDC `HTTP-REQUEST-LOG` как JSON |
+| `wiretap.app-log.fields.kafka-info` | `kafka_info` | MDC `KAFKA-MESSAGE-LOG` как JSON |
 | `wiretap.app-log.fields.extra` | `extra` | MDC `LOG_EXTRA` как JSON |
 | `wiretap.app-log.fields.caller-class` | `caller_class` | Класс вызывающего (отключено по умолчанию) |
 | `wiretap.app-log.fields.caller-method` | `caller_method` | Метод вызывающего (отключено по умолчанию) |
@@ -225,7 +235,7 @@ wiretap:
       http:
         return-code: status
         duration: elapsed_ms
-        request-url: path
+        url: path
         request-body: req
         response-body: resp
 ```
@@ -245,6 +255,7 @@ wiretap:
 | `wiretap.access-log.fields.level` | `level` |
 | `wiretap.access-log.fields.message` | `message` |
 | `wiretap.access-log.fields.http-info` | `http_info` |
+| `wiretap.access-log.fields.kafka-info` | `kafka_info` |
 | `wiretap.access-log.fields.http.return-code` | `return_code` |
 | `wiretap.access-log.fields.http.method` | `http_method` |
 | `wiretap.access-log.fields.http.direction` | `direction` |
@@ -260,6 +271,23 @@ wiretap:
 | `wiretap.access-log.fields.http.response-body` | `response_body` |
 | `wiretap.access-log.fields.http.response-body-length` | `response_body_length` |
 | `wiretap.access-log.fields.http.xml-body-type` | `xml_body_type` |
+| `wiretap.access-log.fields.kafka.direction` | `direction` |
+| `wiretap.access-log.fields.kafka.topic` | `topic` |
+| `wiretap.access-log.fields.kafka.partition` | `partition` |
+| `wiretap.access-log.fields.kafka.offset` | `offset` |
+| `wiretap.access-log.fields.kafka.client-id` | `client_id` |
+| `wiretap.access-log.fields.kafka.group-id` | `group_id` |
+| `wiretap.access-log.fields.kafka.key` | `key` |
+| `wiretap.access-log.fields.kafka.key-length` | `key_length` |
+| `wiretap.access-log.fields.kafka.value` | `value` |
+| `wiretap.access-log.fields.kafka.value-length` | `value_length` |
+| `wiretap.access-log.fields.kafka.headers` | `headers` |
+| `wiretap.access-log.fields.kafka.timestamp` | `timestamp` |
+| `wiretap.access-log.fields.kafka.timestamp-type` | `timestamp_type` |
+| `wiretap.access-log.fields.kafka.duration` | `duration` |
+| `wiretap.access-log.fields.kafka.status` | `status` |
+| `wiretap.access-log.fields.kafka.error-class` | `error_class` |
+| `wiretap.access-log.fields.kafka.error-message` | `error_message` |
 
 ## Добавление собственных полей (SPI)
 
@@ -457,8 +485,9 @@ wiretap:
 Для каждого HTTP-источника есть пара явных allow-листов —
 `request-headers` и `response-headers`, для Kafka — общий список
 `headers`. В лог попадают только хедеры, перечисленные в этих
-списках. Дефолты намеренно короткие (`Content-Type` и
-`X-Forwarded-For` для HTTP, `x-trace-id` и `x-request-id` для Kafka),
+списках. Дефолты намеренно короткие: в `request-headers` — `Content-Type`
+и `X-Forwarded-For`, в `response-headers` — только `Content-Type`, в
+списке `headers` для Kafka — `x-trace-id` и `x-request-id`. Так сделано,
 потому что трафик в проде часто несёт чувствительные значения вроде
 `Authorization` или `Cookie`, которые не должны попадать в логи
 случайно.
@@ -574,6 +603,10 @@ wiretap:
 ```
 
 ### Исключение URL из логирования
+
+У `wiretap.rest-controllers.exclude-request-patterns` уже есть дефолт —
+`["/actuator/.*"]`. Свой список заменяет его целиком, а не дополняет, поэтому
+повторите эту запись, если actuator по-прежнему не должен попадать в лог:
 
 ```yaml
 wiretap:
@@ -899,7 +932,7 @@ public class RequestSourceFilter implements KafkaRecordLogFilter {
 ```yaml
 wiretap:
   kafka-consumer-interceptor:
-    enable-record-filtering: false         # по умолчанию бин молчит
+    enable-record-filtering: false         # выключаем глобально (дефолт — true)
     specific-topic-settings:
       - match-topic-pattern: "orders\\..*"
         enable-record-filtering: true      # ...и работает только здесь
