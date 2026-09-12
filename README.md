@@ -454,7 +454,7 @@ Each source has its own property prefix:
 | Outbound `RestClient` | `wiretap.rest-client-interceptor.*` | `.enabled=false` to disable |
 | Outbound `FeignClient` | `wiretap.feign-client-interceptor.*` | `.enabled=false` to disable |
 | Outbound `WebClient` / `GraphQLWebClient` | `wiretap.web-client-interceptor.*` | `.enabled=false` to disable |
-| Outbound `WebServiceTemplate` (SOAP) | `wiretap.web-service-template-interceptor.*` | Always on |
+| Outbound `WebServiceTemplate` (SOAP) | `wiretap.web-service-template-interceptor.*` | `.enabled=false` to disable |
 | Outbound Kafka producer | `wiretap.kafka-producer-interceptor.*` | `.enabled=false` to disable |
 | Inbound Kafka consumer | `wiretap.kafka-consumer-interceptor.*` | `.enabled=false` to disable |
 

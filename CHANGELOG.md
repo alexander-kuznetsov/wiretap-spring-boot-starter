@@ -7,6 +7,16 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 ## [Unreleased]
 
 ### Fixed
+- A `WebServiceTemplate` built through Spring's auto-configured
+  `WebServiceTemplateBuilder` now logs SOAP traffic out of the box, as the README
+  has always promised. The starter registered the logging interceptor as a bare
+  `ClientInterceptor` bean, which the builder never consults — it only applies
+  `WebServiceTemplateCustomizer` beans — so SOAP logging worked only for templates
+  whose interceptor chain the application assembled by hand. A customizer now
+  appends the interceptor after the ones the application configured and skips a
+  chain that already carries it, so a template wired by hand keeps logging once.
+  `wiretap.web-service-template-interceptor.enabled=false` switches the customizer
+  off, matching the toggle every other outbound client already had.
 - `wiretap.file-logging.enabled` and `wiretap.file-logging.path` now reach the
   access log as well. The access fragment bound them under dash-separated names —
   `wiretap.file-logging-enabled` and `wiretap.file-logging-path` — which no

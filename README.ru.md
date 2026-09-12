@@ -457,7 +457,7 @@ Wiretap перехватывает HTTP-трафик из шести источ�
 | Исходящий `RestClient` | `wiretap.rest-client-interceptor.*` | `.enabled=false` для отключения |
 | Исходящий `FeignClient` | `wiretap.feign-client-interceptor.*` | `.enabled=false` для отключения |
 | Исходящий `WebClient` / `GraphQLWebClient` | `wiretap.web-client-interceptor.*` | `.enabled=false` для отключения |
-| Исходящий `WebServiceTemplate` (SOAP) | `wiretap.web-service-template-interceptor.*` | Всегда включён |
+| Исходящий `WebServiceTemplate` (SOAP) | `wiretap.web-service-template-interceptor.*` | `.enabled=false` для отключения |
 | Исходящий Kafka-продьюсер | `wiretap.kafka-producer-interceptor.*` | `.enabled=false` для отключения |
 | Входящий Kafka-консьюмер | `wiretap.kafka-consumer-interceptor.*` | `.enabled=false` для отключения |
 

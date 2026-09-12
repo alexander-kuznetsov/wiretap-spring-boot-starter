@@ -1009,6 +1009,12 @@
       "description": "Map of URL patterns to extra headers that should be added to the Feign client request"
     },
     {
+      "name": "wiretap.web-service-template-interceptor.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Toggle registration of the WebServiceTemplateBuilder logging interceptor",
+      "defaultValue": true
+    },
+    {
       "name": "wiretap.web-service-template-interceptor.enable-url-masking",
       "type": "java.lang.Boolean",
       "description": "Toggle URL masking for logged SOAP requests",
