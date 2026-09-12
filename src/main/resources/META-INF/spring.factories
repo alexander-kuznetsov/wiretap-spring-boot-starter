@@ -3,4 +3,5 @@ io.wiretap.configuration.LoggerConfiguration, \
 io.wiretap.configuration.HttpAccessEventEncoderConfiguration
 
 org.springframework.boot.env.EnvironmentPostProcessor=\
-io.wiretap.configuration.WiretapTeeFilterDefaultsEnvironmentPostProcessor
+io.wiretap.configuration.WiretapTeeFilterDefaultsEnvironmentPostProcessor, \
+io.wiretap.configuration.WiretapAppLogEnvironmentPostProcessor

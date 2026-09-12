@@ -16,8 +16,10 @@ import java.io.IOException;
  * application log entry. Field names and visibility are controlled via
  * {@link WiretapAppLogProperties} ({@code wiretap.app-log.*}).
  * <p>
- * On startup the bean registers itself into {@link LazyStandardLogFieldsProvider}
- * so Logback can call it once the Spring context is ready.
+ * Registered into {@link LazyStandardLogFieldsProvider} twice: first by
+ * {@code WiretapAppLogEnvironmentPostProcessor} without message masking, as soon
+ * as the environment is prepared, then by the Spring bean, which adds the
+ * {@link MessageMaskingHandler} once the context has created it.
  */
 public class WiretapStandardLogFieldsProvider {
 

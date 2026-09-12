@@ -11,7 +11,9 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * Logback-instantiated wrapper that delegates to {@link WiretapStandardLogFieldsProvider}
- * once the Spring context has initialised it. Until then, writes a minimal fallback
+ * once Spring has registered one. The environment post-processor does so as soon as the
+ * environment is prepared, so by the time Logback parses {@code logback-spring.xml} a
+ * provider is normally already in place. Until then, writes a minimal fallback
  * (timestamp, level, logger, thread, message) using default field names so that
  * pre-Spring log events still produce a usable JSON record instead of an empty {@code {}}.
  */
@@ -22,7 +24,10 @@ public class LazyStandardLogFieldsProvider extends AbstractFieldJsonProvider<ILo
 
     private static volatile WiretapStandardLogFieldsProvider provider;
 
-    /** Called once by {@link WiretapStandardLogFieldsProvider} on Spring startup. */
+    /**
+     * Called by {@code WiretapAppLogEnvironmentPostProcessor} once the environment is
+     * prepared and again by {@link WiretapStandardLogFieldsProvider} once the bean exists.
+     */
     public static void setProvider(WiretapStandardLogFieldsProvider p) {
         provider = p;
     }
