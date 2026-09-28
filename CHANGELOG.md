@@ -6,7 +6,19 @@ versions before `1.0.0` are pre-release and the public API may change between mi
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Fixed
+- Application-log records written while the Spring context is still starting —
+  above all `Application run failed` after a bean blew up — now carry `env`,
+  `system` and `inst` like every other record, under the names configured in
+  `wiretap.app-log.fields.*` and honouring `visibility-settings`. The standard
+  field provider used to reach Logback only from a bean's `@PostConstruct`, so a
+  context that died in `preInstantiateSingletons` before that bean was created
+  reported its own failure through the bare fallback (timestamp, level, thread,
+  logger, message) and log storage could not attribute the crash to an
+  environment. Wiretap now registers the provider from an
+  `EnvironmentPostProcessor`, which Spring Boot runs before it parses
+  `logback-spring.xml`, so the first JSON record already has the full field set;
+  the bean still re-registers later to add message masking.
 
 ## [2.1.0] - 2026-09-03
 
